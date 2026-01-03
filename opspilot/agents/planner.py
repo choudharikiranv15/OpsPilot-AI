@@ -46,23 +46,27 @@ def resolve_ollama_path() -> str:
     )
 
 
-def call_llama(prompt: str) -> str:
+def call_llama(prompt: str, timeout: int = 30) -> str:
     ollama = resolve_ollama_path()
 
-    process = subprocess.run(
-        [ollama, "run", "llama3"],
-        input=prompt,
-        capture_output=True,
-        text=True,
-        encoding="utf-8"
-    )
-
-    if process.returncode != 0:
+    try:
+        process = subprocess.run(
+            [ollama, "run", "llama3"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout
+        )
+    except subprocess.TimeoutExpired:
         raise RuntimeError(
-            f"Ollama failed:\n{process.stderr}"
+            "LLM inference timed out. Consider using a smaller model or reducing context."
         )
 
-    return process.stdout
+    if process.returncode != 0:
+        raise RuntimeError(f"Ollama failed:\n{process.stderr}")
+
+    return process.stdout.strip()
 
 def plan(context: Dict) -> Dict:
     user_prompt = f"""
@@ -74,14 +78,15 @@ Analyze the context and produce a hypothesis.
 
     full_prompt = SYSTEM_PROMPT + "\n" + user_prompt
 
-    raw_output = call_llama(full_prompt)
-
     try:
+        raw_output = call_llama(full_prompt)
         return json.loads(raw_output)
-    except json.JSONDecodeError:
+    except Exception as e:
         return {
             "hypothesis": "Unable to form hypothesis",
             "confidence": 0.0,
             "possible_causes": [],
-            "required_checks": []
+            "required_checks": [],
+            "error": str(e)
         }
+
