@@ -1,16 +1,18 @@
-from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import Dict, Any, List, Optional
 
-
-class AgentState(BaseModel):
+@dataclass
+class AgentState:
     project_root: str
-    context: Dict[str, Any] = Field(default_factory=dict)
+    context: Dict[str, Any] = field(default_factory=dict)
 
     hypothesis: Optional[str] = None
-    confidence: Optional[float] = None
+    confidence: float = 0.0
 
-    checks_remaining: List[str] = Field(default_factory=list)
-    tool_results: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    suggestions: List[Dict[str, Any]] = field(default_factory=list)
 
-    verified: bool = False
-    final_output: Optional[str] = None
+    iteration: int = 0
+    max_iterations: int = 2
+
+    terminated: bool = False

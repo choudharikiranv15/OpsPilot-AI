@@ -44,15 +44,36 @@ HYPOTHESIS:
 EVIDENCE:
 {json.dumps(evidence, indent=2)}
 """
-    proc = subprocess.run(
-        [ollama, "run", "llama3"],
-        input=prompt,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=30
-    )
     try:
-        return json.loads(proc.stdout)
-    except json.JSONDecodeError:
+        proc = subprocess.run(
+            [ollama, "run", "llama3"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120
+        )
+
+        if proc.returncode != 0:
+            print(f"[ERROR] Fixer LLM failed: {proc.stderr}")
+            return {"suggestions": []}
+
+        raw_output = proc.stdout.strip()
+
+        # Try to extract JSON from the output
+        start_idx = raw_output.find('{')
+        end_idx = raw_output.rfind('}')
+
+        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
+            json_str = raw_output[start_idx:end_idx + 1]
+            return json.loads(json_str)
+        else:
+            return json.loads(raw_output)
+
+    except subprocess.TimeoutExpired:
+        print(f"[ERROR] Fixer LLM timed out after 120s")
+        return {"suggestions": []}
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] Failed to parse fixer JSON: {e}")
+        print(f"[ERROR] Raw output was: {raw_output}")
         return {"suggestions": []}

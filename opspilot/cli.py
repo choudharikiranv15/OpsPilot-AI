@@ -18,6 +18,10 @@ from opspilot.agents.fixer import suggest
 from opspilot.diffs.redis import redis_timeout_diff, redis_pooling_diff
 from opspilot.memory import save_memory
 from opspilot.memory import find_similar_issues
+from opspilot.graph.engine import run_agent
+from opspilot.state import AgentState
+
+
 
 app = typer.Typer(help="OpsPilot - Agentic AI CLI for incident analysis")
 console = Console()
@@ -41,17 +45,18 @@ def analyze():
     past = find_similar_issues(project_root)
     if past:
         console.print(
-            "[magenta]🧠 Similar issues detected from past runs:[/magenta]")
+            "[magenta]Similar issues detected from past runs:[/magenta]")
         for p in past[-2:]:
             console.print(
                 f"- {p['hypothesis']} (confidence {p['confidence']})")
 
     state = AgentState(project_root=project_root)
+    state = run_agent(state)
     config = load_config(project_root)
 
-    console.print("[bold green]✔ OpsPilot initialized[/bold green]")
+    console.print("[bold green]OpsPilot initialized[/bold green]")
     console.print(
-        f"[bold green]✔ Project detected[/bold green]: {project_root}")
+        f"[bold green]Project detected[/bold green]: {project_root}")
     console.print(f"Config loaded: {bool(config)}")
 
     state.context = {
@@ -68,7 +73,7 @@ def analyze():
     console.print(
         f"• Dependencies detected: {len(state.context['dependencies'])}")
 
-    console.print("[cyan]🧠 Planner Agent reasoning...[/cyan]")
+    console.print("[cyan]Planner Agent reasoning...[/cyan]")
     console.print("[debug] entering planner")
 
     with console.status("[cyan]Analyzing project context with LLM...[/cyan]", spinner="dots"):
@@ -105,11 +110,11 @@ def analyze():
         evidence["uses_redis"] = True
 
     console.print("[debug] evidence done")
-    console.print("[cyan]🛠 Evidence collected:[/cyan]", evidence)
+    console.print("[cyan]Evidence collected:[/cyan]", evidence)
 
     if state.hypothesis and evidence:
         console.print("[debug] verifying")
-        console.print("[cyan]🔎 Verifying hypothesis...[/cyan]")
+        console.print("[cyan]Verifying hypothesis...[/cyan]")
         verdict = verify(state.hypothesis, evidence)
         console.print("[debug] verification done")
 
@@ -127,7 +132,7 @@ def analyze():
     if verdict.get("confidence", 0) >= CONFIDENCE_THRESHOLD and state.hypothesis:
         console.print("[debug] suggesting fixes")
         console.print(
-            "[cyan]🧩 Generating safe fix suggestions (dry-run)...[/cyan]")
+            "[cyan]Generating safe fix suggestions (dry-run)...[/cyan]")
 
         suggestions = []
 
@@ -158,8 +163,9 @@ def analyze():
         "confidence": verdict.get("confidence"),
         "evidence": evidence
     })
-    console.print("\n[bold green]🧾 Final Diagnosis Summary[/bold green]")
+    console.print("\n[bold green]Final Diagnosis Summary[/bold green]")
     console.print(f"• Hypothesis: {state.hypothesis}")
-    console.print(f"• Confidence: {verdict.get('confidence')}")
-    console.print(f"• Evidence signals: {list(evidence.keys())}")
+    console.print(f"• Confidence: {state.confidence}")
+    console.print(f"• Evidence signals: {list(state.evidence.keys())}")
     console.print("• Suggested fixes: DRY-RUN ONLY")
+
