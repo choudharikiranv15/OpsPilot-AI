@@ -14,11 +14,15 @@ def collect_context_node(state: AgentState) -> AgentState:
 
 
 def planner_node(state: AgentState) -> AgentState:
+    if state.hypothesis:
+        return state  # already planned this iteration
+
     result = plan(state.context)
     state.hypothesis = result.get("hypothesis")
     state.confidence = result.get("confidence", 0.0)
     state.iteration += 1
     return state
+
 
 
 def verifier_node(state: AgentState) -> AgentState:

@@ -2,14 +2,16 @@ import typer
 from rich.console import Console
 from pathlib import Path
 from opspilot.agents.planner import plan
-
+import json
 from opspilot.state import AgentState
 from opspilot.config import load_config
+from opspilot.context import collect_context
 from opspilot.context.project import scan_project_tree
 from opspilot.context.logs import read_logs
 from opspilot.context.env import read_env
 from opspilot.context.docker import read_docker_files
 from opspilot.context.deps import read_dependencies
+from opspilot.tools import collect_evidence
 from opspilot.tools.log_tools import analyze_log_errors
 from opspilot.tools.env_tools import find_missing_env
 from opspilot.tools.dep_tools import has_dependency
@@ -36,7 +38,30 @@ def main():
 
 
 @app.command()
-def analyze():
+def analyze(
+     mode: str = typer.Option(
+        "quick",
+        help="Execution mode: quick | deep | explain"
+    ),
+    output_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Output machine-readable JSON"
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Show additional details"
+    ),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help="Show debug logs"
+    ),
+):
+    if mode not in {"quick", "deep", "explain"}:
+        raise typer.BadParameter("Mode must be quick, deep, or explain")
+
     """
     Analyze the current project for runtime issues.
     """
@@ -51,7 +76,21 @@ def analyze():
                 f"- {p['hypothesis']} (confidence {p['confidence']})")
 
     state = AgentState(project_root=project_root)
-    state = run_agent(state)
+
+    if mode == "explain":
+        # No LLM at all
+        state.context = collect_context(project_root)
+        state.evidence = collect_evidence(state.context)
+
+    elif mode == "quick":
+        # One planner pass only
+        state.max_iterations = 1
+        state = run_agent(state)
+
+    elif mode == "deep":
+        # Full agent loop (default)
+        state = run_agent(state)
+
     config = load_config(project_root)
 
     console.print("[bold green]OpsPilot initialized[/bold green]")
@@ -169,3 +208,19 @@ def analyze():
     console.print(f"• Evidence signals: {list(state.evidence.keys())}")
     console.print("• Suggested fixes: DRY-RUN ONLY")
 
+    result = {
+    "project": project_root,
+    "hypothesis": state.hypothesis,
+    "confidence": state.confidence,
+    "evidence": state.evidence,
+    "suggestions": state.suggestions,
+}
+
+    if output_json:
+        print(json.dumps(result, indent=2))
+        return
+    if not state.hypothesis or state.confidence < 0.6:
+        console.print(
+            "[yellow]No confident diagnosis could be made. Evidence insufficient.[/yellow]"
+        )
+        return
