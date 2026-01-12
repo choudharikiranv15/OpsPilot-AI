@@ -26,6 +26,16 @@ from opspilot.agents.remediation import generate_remediation_plan, format_remedi
 from opspilot.diffs.redis import redis_timeout_diff, redis_pooling_diff
 from opspilot.memory import save_memory
 from opspilot.memory import find_similar_issues
+# Redis memory backend (with fallback to file-based)
+try:
+    from opspilot.memory_redis import get_memory_backend
+    redis_memory = get_memory_backend(
+        redis_host=os.getenv("REDIS_HOST", "localhost"),
+        redis_port=int(os.getenv("REDIS_PORT", "6379")),
+        fallback_to_file=True
+    )
+except Exception:
+    redis_memory = None  # Will use file-based fallback
 from opspilot.graph.engine import run_agent
 from opspilot.state import AgentState
 

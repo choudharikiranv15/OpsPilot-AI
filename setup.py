@@ -42,6 +42,20 @@ setup(
             "black>=23.0.0",
             "flake8>=6.0.0",
         ],
+        "redis": [
+            "redis>=4.5.0",  # Redis client for incident memory
+        ],
+        "aws": [
+            "boto3>=1.26.0",  # AWS S3 and CloudWatch integration
+        ],
+        "k8s": [
+            "kubernetes>=25.0.0",  # Kubernetes log fetching
+        ],
+        "all": [
+            "redis>=4.5.0",
+            "boto3>=1.26.0",
+            "kubernetes>=25.0.0",
+        ],
     },
     entry_points={
         "console_scripts": [

@@ -31,30 +31,45 @@ OpsPilot implements a **multi-agent agentic architecture** where specialized AI 
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
+│                 Multi-Provider LLM Router                    │
+│   (Ollama → OpenRouter → Gemini → HuggingFace fallback)    │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────┐
 │                    Graph Engine                              │
 │              (Orchestrates Agent Workflow)                   │
 └───────────────────────────┬─────────────────────────────────┘
                             │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Planner    │───▶│  Verifier    │───▶│    Fixer     │
-│    Agent     │    │    Agent     │    │    Agent     │
-└──────────────┘    └──────────────┘    └──────────────┘
-        │                   │                   │
-        └───────────────────┴───────────────────┘
+        ┌───────────────────┼───────────────────┬──────────────┐
+        │                   │                   │              │
+        ▼                   ▼                   ▼              ▼
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐ ┌──────────────┐
+│   Planner    │───▶│  Verifier    │───▶│    Fixer     │─│ Remediation  │
+│    Agent     │    │    Agent     │    │    Agent     │ │    Agent     │
+└──────────────┘    └──────────────┘    └──────────────┘ └──────────────┘
+        │                   │                   │              │
+        └───────────────────┴───────────────────┴──────────────┘
                             │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Context Layer                             │
-│  (Logs, Env, Docker, Dependencies, Project Structure)       │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
+                ┌───────────┴───────────┐
+                │                       │
+                ▼                       ▼
+┌─────────────────────────────┐  ┌─────────────────────────────┐
+│      Context Layer          │  │    Memory Layer (Redis)     │
+│  • Local logs               │  │  • User-isolated storage    │
+│  • Production logs (S3/K8s) │  │  • Auto-expiring TTL        │
+│  • Environment vars         │  │  • Similarity search        │
+│  • Dependencies             │  │  • Severity indexing        │
+│  • Docker configs           │  │  • LLM health metrics       │
+│  • Git deployment history   │  │  • Fallback to file-based   │
+└─────────────────────────────┘  └─────────────────────────────┘
+                │
+                ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      Tools Layer                             │
-│         (Evidence Collection & Analysis Utilities)           │
+│    • Pattern Analysis (P0/P1/P2/P3 classification)          │
+│    • Log Error Analysis                                      │
+│    • Environment Validation                                  │
+│    • Dependency Checking                                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -77,15 +92,18 @@ OpsPilot implements a **multi-agent agentic architecture** where specialized AI 
 - Context modules are pluggable
 - Easy to add new agents or data sources
 
-### 4. **Local-First**
-- Uses local LLM (Ollama) - no cloud dependencies
-- Privacy-aware: no sensitive data sent externally
-- Works completely offline
+### 4. **Privacy-Focused with High Availability**
+- Prefers local LLM (Ollama) - no cloud dependencies by default
+- Automatic fallback to cloud providers for reliability
+- All cloud providers use FREE tiers (OpenRouter, Gemini, HuggingFace)
+- User controls provider preference via environment variables
 
-### 5. **Learning & Memory**
-- Maintains history of past issues
-- Detects similar problems in future runs
-- Improves diagnosis speed over time
+### 5. **Learning & Memory with Auto-Expiration**
+- Redis-based incident storage with user isolation (SHA-256 project hashing)
+- Automatic TTL expiration (default 30 days) prevents stale data
+- Sub-second similarity search using Redis sorted sets
+- Severity-based indexing (P0/P1/P2/P3) for quick critical incident lookup
+- Graceful fallback to file-based storage if Redis unavailable
 
 ---
 
@@ -217,6 +235,231 @@ State = {
 
 ---
 
+### 4. Remediation Agent (`agents/remediation.py`)
+
+**Responsibility**: Generate comprehensive 3-tier action plans
+
+**Input**:
+- Severity level (P0/P1/P2/P3)
+- Error patterns
+- Evidence
+
+**Output**:
+```json
+{
+  "immediate_actions": [
+    "Restart Redis service",
+    "Check Redis server logs for errors"
+  ],
+  "short_term_fixes": [
+    "Increase Redis timeout to 5 seconds",
+    "Enable connection pooling (max 20 connections)"
+  ],
+  "long_term_improvements": [
+    "Set up Redis cluster for high availability",
+    "Implement circuit breaker pattern"
+  ],
+  "verification_steps": [
+    "Monitor error rate after changes",
+    "Verify Redis response times < 100ms"
+  ]
+}
+```
+
+**Strategy**:
+- **Immediate**: Actions to take right now (P0/P1 incidents)
+- **Short-term**: Fixes to apply within hours/days
+- **Long-term**: Architectural improvements for prevention
+- **Verification**: How to confirm the issue is resolved
+
+---
+
+## Multi-Provider LLM System
+
+### Architecture
+
+OpsPilot uses a **router-based multi-provider system** with automatic fallback:
+
+```python
+LLMRouter
+├── OllamaProvider (local, priority 1)
+│   ├── Health check: ollama list
+│   ├── Model: llama3
+│   └── Timeout: 60s
+├── OpenRouterProvider (cloud, priority 2)
+│   ├── Health check: API key present
+│   ├── Model: google/gemini-2.0-flash-exp:free
+│   └── Timeout: 60s
+├── GeminiProvider (cloud, priority 3)
+│   ├── Health check: API key present
+│   ├── Model: gemini-2.0-flash
+│   └── Timeout: 60s
+└── HuggingFaceProvider (cloud, priority 4)
+    ├── Health check: API key present
+    ├── Model: mistralai/Mixtral-8x7B-Instruct-v0.1
+    └── Timeout: 60s
+```
+
+### Fallback Logic
+
+```python
+def call(prompt: str, timeout: int) -> str:
+    errors = []
+
+    # Try last successful provider first (sticky routing)
+    if self.last_successful_provider:
+        try:
+            return self.last_successful_provider.call(prompt)
+        except Exception as e:
+            errors.append(f"{provider}: {e}")
+
+    # Try all available providers in order
+    for provider in self.providers:
+        if not provider.is_available():
+            continue
+
+        try:
+            result = provider.call(prompt)
+            self.last_successful_provider = provider  # Remember success
+            return result
+        except Exception as e:
+            errors.append(f"{provider}: {e}")
+            continue
+
+    # All providers failed
+    raise RuntimeError(f"All LLM providers failed:\n{errors}")
+```
+
+### Provider Health Tracking
+
+The system tracks LLM provider health metrics in Redis:
+
+```python
+# Per-provider metrics
+redis.hset("llm:health:OllamaProvider", {
+    "success_count": 142,
+    "failure_count": 3,
+    "avg_latency_ms": 234.5,
+    "last_success": 1736704800
+})
+```
+
+### Configuration
+
+Users can control provider preference via environment variables:
+
+```bash
+# Prefer local over cloud (default: true)
+OPSPILOT_PREFER_LOCAL=true
+
+# LLM inference timeout (default: 60s)
+OPSPILOT_LLM_TIMEOUT=60
+
+# API keys for cloud providers (optional)
+OPENROUTER_API_KEY=sk-or-v1-...
+GOOGLE_API_KEY=...
+HUGGINGFACE_API_KEY=hf_...
+```
+
+---
+
+## Redis-Based Memory System
+
+### User Isolation Strategy
+
+**Problem**: Multiple users/projects must not see each other's incidents
+
+**Solution**: SHA-256 project path hashing
+
+```python
+def _get_project_hash(project_root: str) -> str:
+    return hashlib.sha256(project_root.encode()).hexdigest()[:16]
+
+# User 1: /home/alice/app → hash: a1b2c3d4e5f6g7h8
+# User 2: /home/bob/app   → hash: x9y8z7w6v5u4t3s2
+
+# Complete key isolation
+incident:a1b2c3d4:1234567890  # Alice's incident
+incident:x9y8z7w6:1234567890  # Bob's incident
+```
+
+### Redis Schema Design
+
+```python
+# 1. Individual incidents (auto-expire after TTL)
+Key:   incident:{project_hash}:{timestamp}
+Value: JSON {hypothesis, confidence, severity, evidence, ...}
+TTL:   2592000 seconds (30 days, configurable)
+
+# 2. Similarity index (sorted set by confidence)
+Key:    incidents:similar:{project_hash}
+Score:  confidence (0.0 - 1.0)
+Member: incident_key
+TTL:    2592000 seconds
+
+# 3. Severity index (set per severity level)
+Key:   incidents:severity:{project_hash}:{P0/P1/P2/P3}
+Value: Set of incident_keys
+TTL:   2592000 seconds
+
+# 4. LLM provider health (global, shared)
+Key:   llm:health:{provider_name}
+Value: Hash {success_count, failure_count, avg_latency_ms}
+TTL:   3600 seconds (1 hour)
+```
+
+### Why TTL-Based Expiration?
+
+**Problem**: PostgreSQL would accumulate fixed incidents forever
+
+**Solution**: Redis TTL automatically expires old data
+
+```python
+# Incident stored with TTL
+redis.setex(
+    key=f"incident:{project_hash}:{timestamp}",
+    time=OPSPILOT_REDIS_TTL_DAYS * 24 * 60 * 60,  # Default: 30 days
+    value=json.dumps(incident_data)
+)
+
+# After 30 days: Redis automatically deletes the key
+# No cleanup jobs needed, no stale data accumulation
+```
+
+### Performance Characteristics
+
+```python
+# Similarity search: O(log N) with sorted sets
+similar = redis.zrevrangebyscore(
+    f"incidents:similar:{project_hash}",
+    max=1.0,
+    min=0.6,
+    start=0,
+    num=5
+)
+# Returns top 5 similar incidents in <10ms
+
+# Severity filter: O(1) with set membership
+p0_incidents = redis.smembers(f"incidents:severity:{project_hash}:P0")
+# Returns all P0 incidents in <5ms
+```
+
+### Graceful Degradation
+
+```python
+try:
+    redis_memory = RedisMemory()
+    if not redis_memory.health_check():
+        raise RuntimeError("Redis unavailable")
+except Exception:
+    # Fallback to file-based memory
+    print("[INFO] Using file-based memory (Redis unavailable)")
+    from opspilot.memory import load_memory, save_memory
+    # System continues working with file-based storage
+```
+
+---
+
 ## Data Flow
 
 ### Complete Execution Flow
@@ -344,16 +587,16 @@ The workflow terminates when:
 
 ## LLM Integration
 
-### Ollama Integration Strategy
+### Multi-Provider Strategy
 
-OpsPilot uses **Ollama** (local LLM runtime) with **Llama 3** model:
+OpsPilot uses a **router-based multi-provider system** with automatic fallback (see [Multi-Provider LLM System](#multi-provider-llm-system) section above for details).
 
-**Why Ollama?**
-- ✅ Runs locally - no cloud API costs
-- ✅ Privacy-preserving - no data sent externally
-- ✅ Works offline
-- ✅ Fast inference for smaller models
-- ✅ Easy to switch models (llama3, mistral, phi, etc.)
+**Why Multi-Provider?**
+- ✅ **High Availability**: Automatic failover if one provider is down
+- ✅ **Cost Optimization**: Prefer free local inference (Ollama)
+- ✅ **Flexibility**: All providers use FREE tiers (no API costs)
+- ✅ **Privacy Options**: Can run 100% offline with Ollama only
+- ✅ **Vendor Independence**: Not locked into single provider
 
 ### Prompt Engineering Techniques
 
@@ -445,25 +688,52 @@ if start_idx != -1 and end_idx != -1:
 
 ---
 
-### Why Local LLM (Ollama) Instead of Cloud APIs?
+### Why Multi-Provider LLM System?
 
 **Pros**:
-- ✅ Zero cost (no API fees)
-- ✅ Privacy (no data sent to third parties)
-- ✅ Works offline
-- ✅ Fast for small models
-- ✅ No rate limits
+- ✅ High availability (automatic failover)
+- ✅ Zero cost (all providers use FREE tiers)
+- ✅ Privacy option (can use Ollama only)
+- ✅ Vendor independence (not locked in)
+- ✅ No single point of failure
 
 **Cons**:
-- ❌ Requires user to install Ollama
-- ❌ Limited model choice compared to cloud
-- ❌ Hardware requirements (GPU recommended)
+- ❌ More complex implementation
+- ❌ Requires API key management
 
-**Decision**: Local-first for privacy and cost, but can add cloud provider support later
+**Decision**: Multi-provider for reliability while maintaining free/open-source principles
+
+---
+
+### Why Redis Over PostgreSQL for Memory?
+
+**Redis Pros**:
+- ✅ Auto-expiring data (TTL) - no stale incidents
+- ✅ Sub-second lookups (critical for incident response)
+- ✅ Simple key-value schema (no migrations)
+- ✅ In-memory speed (perfect for real-time)
+- ✅ Built-in sorted sets for similarity search
+
+**PostgreSQL Cons**:
+- ❌ Would accumulate fixed incidents forever
+- ❌ Requires cleanup jobs for old data
+- ❌ Slower for simple lookups
+- ❌ Schema migrations needed
+
+**Decision**: Redis for hot data (30 days), can add PostgreSQL later for long-term analytics if needed
 
 ---
 
 ## Future Enhancements
+
+### Completed Features ✅
+
+- ✅ **Multi-Provider LLM Support**: Ollama, OpenRouter, Gemini, HuggingFace with automatic fallback
+- ✅ **Redis-Based Memory**: User-isolated storage with auto-expiring TTL
+- ✅ **Severity Classification**: P0/P1/P2/P3 incident prioritization
+- ✅ **Production Log Fetching**: S3, Kubernetes, CloudWatch integration
+- ✅ **Deployment Correlation**: Git-based deployment history analysis
+- ✅ **Comprehensive Testing**: 45+ unit tests with pytest
 
 ### Planned Improvements
 
@@ -476,14 +746,7 @@ opspilot.register_agent("my_custom_agent", MyAgentClass)
 opspilot.register_tool("my_evidence_tool", my_tool_function)
 ```
 
-#### 2. **Multi-LLM Support**
-```python
-# Support OpenAI, Anthropic, Google, etc.
-opspilot analyze --provider openai --model gpt-4
-opspilot analyze --provider anthropic --model claude-3
-```
-
-#### 3. **Web API Layer**
+#### 2. **Web API Layer**
 ```python
 # FastAPI endpoint
 POST /api/analyze
@@ -495,7 +758,7 @@ POST /api/analyze
 }
 ```
 
-#### 4. **Feedback Loop (Self-Improvement)**
+#### 3. **Feedback Loop (Self-Improvement)**
 ```python
 # Agent can re-run if confidence is low
 while state.confidence < 0.6 and state.iteration < max_iterations:
@@ -503,11 +766,18 @@ while state.confidence < 0.6 and state.iteration < max_iterations:
     state = verifier_node(state)
 ```
 
-#### 5. **Metrics & Monitoring**
+#### 4. **Real-Time Metrics Dashboard**
 - Track success rate of hypotheses
 - Measure confidence accuracy
 - Monitor LLM response times
-- Log all decisions for audit trail
+- Visualize incident trends over time
+- Provider health monitoring UI
+
+#### 5. **Incident Alert Integration**
+- Slack notifications for P0/P1 incidents
+- PagerDuty integration
+- Custom webhook support
+- Email alerts with incident summary
 
 #### 6. **Advanced Evidence Collection**
 - API endpoint testing
@@ -527,12 +797,16 @@ while state.confidence < 0.6 and state.iteration < max_iterations:
 
 OpsPilot's architecture is designed for:
 - ✅ **Safety**: Dry-run only, evidence-based decisions
+- ✅ **High Availability**: Multi-provider LLM with automatic failover
 - ✅ **Modularity**: Easy to extend with new agents/tools
-- ✅ **Transparency**: Clear state transitions, confidence scores
-- ✅ **Privacy**: Local-first LLM integration
-- ✅ **Reliability**: Robust error handling, timeouts, fallbacks
+- ✅ **Transparency**: Clear state transitions, confidence scores, severity classification
+- ✅ **Privacy-Focused**: Prefers local LLM with optional cloud fallback
+- ✅ **Production-Ready**: Redis memory with user isolation, auto-expiring TTL
+- ✅ **Scalability**: Sub-second incident lookups, severity indexing
+- ✅ **Reliability**: Robust error handling, timeouts, graceful degradation
+- ✅ **Vendor Independence**: 100% free/open-source providers, no lock-in
 
-The multi-agent pattern provides a clean, maintainable foundation for building intelligent DevOps automation tools.
+The multi-agent pattern combined with multi-provider LLM routing and Redis-based memory provides a robust, production-ready foundation for intelligent DevOps automation.
 
 ---
 
