@@ -155,7 +155,7 @@ def format_remediation_output(plan: Dict) -> str:
     output = []
 
     if plan.get("immediate_actions"):
-        output.append("\n🔥 IMMEDIATE ACTIONS (0-5 min):")
+        output.append("\n[!] IMMEDIATE ACTIONS (0-5 min):")
         output.append("=" * 60)
         for action in plan["immediate_actions"]:
             output.append(f"\n{action['step']}. {action['action']}")
@@ -166,7 +166,7 @@ def format_remediation_output(plan: Dict) -> str:
                 output.append(f"   Why: {action['rationale']}")
 
     if plan.get("short_term_fixes"):
-        output.append("\n\n📋 SHORT-TERM FIXES (1-24 hours):")
+        output.append("\n\n[~] SHORT-TERM FIXES (1-24 hours):")
         output.append("=" * 60)
         for fix in plan["short_term_fixes"]:
             output.append(f"\n{fix['step']}. {fix['action']}")
@@ -182,7 +182,7 @@ def format_remediation_output(plan: Dict) -> str:
                 output.append(f"   Risk: {fix['risk']}")
 
     if plan.get("long_term_fixes"):
-        output.append("\n\n🔧 LONG-TERM FIXES (1-4 weeks):")
+        output.append("\n\n[+] LONG-TERM FIXES (1-4 weeks):")
         output.append("=" * 60)
         for idx, fix in enumerate(plan["long_term_fixes"], 1):
             output.append(f"\n{idx}. {fix['action']}")
@@ -192,7 +192,7 @@ def format_remediation_output(plan: Dict) -> str:
                 output.append(f"   Why: {fix['rationale']}")
 
     if plan.get("verification_steps"):
-        output.append("\n\n✅ VERIFICATION STEPS:")
+        output.append("\n\n[v] VERIFICATION STEPS:")
         output.append("=" * 60)
         for idx, step in enumerate(plan["verification_steps"], 1):
             output.append(f"{idx}. {step}")

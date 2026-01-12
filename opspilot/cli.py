@@ -168,23 +168,9 @@ def analyze(
         console.print("[bold yellow]Confidence:[/bold yellow]", state.confidence)
 
         console.print("[debug] collecting evidence")
-        evidence = {}
 
-        # Tool 1: logs
-        log_counts = analyze_log_errors(state.context.get("logs"))
-        if log_counts:
-            evidence["log_errors"] = log_counts
-
-        # Tool 2: env check (example)
-        required_envs = ["REDIS_URL"]
-        missing = find_missing_env(required_envs, state.context.get("env", {}))
-        if missing:
-            evidence["missing_env"] = missing
-
-        # Tool 3: deps
-        deps = state.context.get("dependencies", [])
-        if has_dependency(deps, "redis"):
-            evidence["uses_redis"] = True
+        # Use centralized evidence collection with pattern analysis
+        evidence = collect_evidence(state.context)
 
         console.print("[debug] evidence done")
 
@@ -297,7 +283,7 @@ def analyze(
         save_memory({
             "project": project_root,
             "hypothesis": state.hypothesis,
-            "confidence": verdict.get("confidence"),
+            "confidence": verdict.get("confidence") if verdict else 0.0,
             "evidence": evidence
         })
         console.print("\n[bold green]Final Diagnosis Summary[/bold green]")
