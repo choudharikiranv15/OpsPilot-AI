@@ -15,7 +15,7 @@ from opspilot.context.production_logs import auto_detect_and_fetch
 from opspilot.context.deployment_history import analyze_deployment_impact, format_deployment_analysis, correlate_with_error_timeline
 from opspilot.tools import collect_evidence
 from opspilot.tools.log_tools import analyze_log_errors
-from opspilot.utils.llm import check_ollama_available
+from opspilot.utils.llm import check_any_llm_available, get_llm_router
 from opspilot.tools.env_tools import find_missing_env
 from opspilot.tools.dep_tools import has_dependency
 from opspilot.agents.verifier import verify
@@ -85,13 +85,23 @@ def analyze(
         raise typer.BadParameter("Mode must be quick, deep, or explain")
 
     try:
-        # Check Ollama availability
-        if not check_ollama_available():
+        # Check LLM availability (any provider)
+        if not check_any_llm_available():
+            router = get_llm_router()
             console.print(
-                "[red]ERROR:[/red] Ollama not found or not running.\n"
-                "Install from: https://ollama.ai/ and run: ollama pull llama3"
+                "[red]ERROR:[/red] No LLM provider available.\n\n"
+                "Setup at least one provider:\n"
+                "1. Ollama (local, free): https://ollama.ai/ → ollama pull llama3\n"
+                "2. Google Gemini (cloud, free tier): Set GOOGLE_API_KEY env var\n"
+                "3. OpenAI (cloud, paid): Set OPENAI_API_KEY env var\n"
+                "4. Anthropic (cloud, paid): Set ANTHROPIC_API_KEY env var"
             )
             raise typer.Exit(code=1)
+
+        # Show which provider will be used
+        router = get_llm_router()
+        available = router.get_available_providers()
+        console.print(f"[dim]LLM providers available: {', '.join(available)}[/dim]")
 
         project_root = str(Path.cwd())
 
