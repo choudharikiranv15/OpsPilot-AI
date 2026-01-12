@@ -1,0 +1,30 @@
+# Include documentation
+include README.md
+include LICENSE
+include ARCHITECTURE.md
+include FREE_LLM_SETUP.md
+include ENV_SETUP.md
+include DEPLOYMENT.md
+
+# Include configuration templates
+include .env.example
+
+# Include package data
+recursive-include opspilot *.py
+recursive-include opspilot *.json
+
+# Include tests
+recursive-include tests *.py
+
+# Exclude development and build artifacts
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude *.dylib
+exclude .env
+exclude .gitignore
+prune .git
+prune build
+prune dist
+prune *.egg-info
