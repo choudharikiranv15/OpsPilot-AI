@@ -3,6 +3,8 @@ from rich.console import Console
 from pathlib import Path
 from opspilot.agents.planner import plan
 import json
+import os
+from dotenv import load_dotenv
 from opspilot.state import AgentState
 from opspilot.config import load_config
 from opspilot.context import collect_context
@@ -28,6 +30,9 @@ from opspilot.graph.engine import run_agent
 from opspilot.state import AgentState
 
 
+
+# Load environment variables from .env file (searches in current directory and parents)
+load_dotenv(verbose=False, override=False)  # Don't override existing env vars
 
 app = typer.Typer(help="OpsPilot - Agentic AI CLI for incident analysis")
 console = Console()
@@ -90,11 +95,19 @@ def analyze(
             router = get_llm_router()
             console.print(
                 "[red]ERROR:[/red] No LLM provider available.\n\n"
-                "Setup at least one provider:\n"
-                "1. Ollama (local, free): https://ollama.ai/ → ollama pull llama3\n"
-                "2. Google Gemini (cloud, free tier): Set GOOGLE_API_KEY env var\n"
-                "3. OpenAI (cloud, paid): Set OPENAI_API_KEY env var\n"
-                "4. Anthropic (cloud, paid): Set ANTHROPIC_API_KEY env var"
+                "[bold]Setup at least one FREE/open-source provider:[/bold]\n\n"
+                "1. [cyan]Ollama[/cyan] (local, 100% free & private)\n"
+                "   curl -fsSL https://ollama.ai/install.sh | sh\n"
+                "   ollama pull llama3\n\n"
+                "2. [cyan]Google Gemini[/cyan] (cloud, free tier)\n"
+                "   Get key: https://aistudio.google.com/\n"
+                "   export GOOGLE_API_KEY='your-key'\n\n"
+                "3. [cyan]OpenRouter[/cyan] (cloud, free models)\n"
+                "   Get key: https://openrouter.ai/\n"
+                "   export OPENROUTER_API_KEY='your-key'\n\n"
+                "4. [cyan]HuggingFace[/cyan] (cloud, free tier)\n"
+                "   Get key: https://huggingface.co/settings/tokens\n"
+                "   export HUGGINGFACE_API_KEY='your-key'"
             )
             raise typer.Exit(code=1)
 

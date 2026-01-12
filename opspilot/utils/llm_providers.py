@@ -118,27 +118,29 @@ class OllamaProvider(LLMProvider):
             raise RuntimeError(f"Ollama inference timed out after {self.timeout}s")
 
 
-class OpenAIProvider(LLMProvider):
-    """OpenAI GPT provider."""
+class OpenRouterProvider(LLMProvider):
+    """OpenRouter provider - access to many free open-source models."""
 
-    def __init__(self, model: str = "gpt-4o-mini", timeout: int = 60):
+    def __init__(self, model: str = "google/gemini-2.0-flash-exp:free", timeout: int = 60):
         super().__init__(timeout)
         self.model = model
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.base_url = "https://api.openai.com/v1/chat/completions"
+        self.api_key = os.getenv("OPENROUTER_API_KEY")  # Free tier available
+        self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def is_available(self) -> bool:
-        """Check if OpenAI API key is configured."""
+        """Check if OpenRouter API key is configured."""
         return self.api_key is not None
 
     def call(self, prompt: str) -> str:
-        """Call OpenAI API."""
+        """Call OpenRouter API with free models."""
         if not self.api_key:
-            raise RuntimeError("OPENAI_API_KEY environment variable not set")
+            raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/opspilot",  # Required by OpenRouter
+            "X-Title": "OpsPilot"
         }
 
         payload = {
@@ -163,7 +165,61 @@ class OpenAIProvider(LLMProvider):
             return data["choices"][0]["message"]["content"]
 
         except requests.RequestException as e:
-            raise RuntimeError(f"OpenAI API call failed: {e}")
+            raise RuntimeError(f"OpenRouter API call failed: {e}")
+
+
+class HuggingFaceProvider(LLMProvider):
+    """HuggingFace Inference API provider - free tier for open models."""
+
+    def __init__(self, model: str = "mistralai/Mistral-7B-Instruct-v0.2", timeout: int = 60):
+        super().__init__(timeout)
+        self.model = model
+        self.api_key = os.getenv("HUGGINGFACE_API_KEY")  # Free tier available
+        self.base_url = f"https://api-inference.huggingface.co/models/{self.model}"
+
+    def is_available(self) -> bool:
+        """Check if HuggingFace API key is configured."""
+        return self.api_key is not None
+
+    def call(self, prompt: str) -> str:
+        """Call HuggingFace Inference API."""
+        if not self.api_key:
+            raise RuntimeError("HUGGINGFACE_API_KEY environment variable not set")
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "temperature": 0.3,
+                "max_new_tokens": 2000,
+                "return_full_text": False
+            }
+        }
+
+        try:
+            response = requests.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            # HuggingFace returns different formats
+            if isinstance(data, list):
+                return data[0]["generated_text"]
+            elif isinstance(data, dict) and "generated_text" in data:
+                return data["generated_text"]
+            else:
+                return str(data)
+
+        except requests.RequestException as e:
+            raise RuntimeError(f"HuggingFace API call failed: {e}")
 
 
 class AnthropicProvider(LLMProvider):
@@ -275,22 +331,22 @@ class LLMRouter:
         self.last_successful_provider = None
 
     def _initialize_providers(self) -> List[LLMProvider]:
-        """Initialize providers in priority order."""
+        """Initialize providers in priority order (all free/open-source)."""
         if self.prefer_local:
-            # Local first, then cloud (free tier), then paid
+            # Local first, then free cloud providers
             return [
-                OllamaProvider(),
-                GeminiProvider(),    # Free tier available
-                OpenAIProvider(),     # Paid
-                AnthropicProvider()   # Paid
+                OllamaProvider(),           # Free, local, private
+                GeminiProvider(),           # Free tier (Google)
+                OpenRouterProvider(),       # Free models via OpenRouter
+                HuggingFaceProvider()       # Free tier (HuggingFace)
             ]
         else:
             # Cloud first (faster), then local
             return [
-                GeminiProvider(),
-                OpenAIProvider(),
-                AnthropicProvider(),
-                OllamaProvider()
+                GeminiProvider(),           # Free tier, fastest
+                OpenRouterProvider(),       # Free models, many options
+                HuggingFaceProvider(),      # Free tier, open models
+                OllamaProvider()            # Free, local fallback
             ]
 
     def get_available_providers(self) -> List[str]:
@@ -352,11 +408,11 @@ class LLMRouter:
         error_summary = "\n".join(errors)
         raise RuntimeError(
             f"All LLM providers failed:\n{error_summary}\n\n"
-            f"Setup instructions:\n"
-            f"- Ollama: Install from https://ollama.ai/ and run: ollama pull llama3\n"
-            f"- OpenAI: Set OPENAI_API_KEY environment variable\n"
-            f"- Anthropic: Set ANTHROPIC_API_KEY environment variable\n"
-            f"- Google: Set GOOGLE_API_KEY environment variable (free tier at https://aistudio.google.com/)"
+            f"Setup instructions (all FREE/open-source):\n"
+            f"1. Ollama (local): Install from https://ollama.ai/ → ollama pull llama3\n"
+            f"2. Google Gemini (free tier): Get key at https://aistudio.google.com/ → export GOOGLE_API_KEY=...\n"
+            f"3. OpenRouter (free models): Get key at https://openrouter.ai/ → export OPENROUTER_API_KEY=...\n"
+            f"4. HuggingFace (free tier): Get key at https://huggingface.co/settings/tokens → export HUGGINGFACE_API_KEY=..."
         )
 
     def safe_json_parse(self, raw: str, retry_timeout: int = 15) -> Dict:

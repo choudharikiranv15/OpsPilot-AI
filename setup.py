@@ -33,7 +33,7 @@ setup(
         "typer>=0.9.0",
         "rich>=13.0.0",
         "requests>=2.28.0",
-        # No additional deps needed - uses standard library + requests
+        "python-dotenv>=1.0.0",  # For .env file support
     ],
     extras_require={
         "dev": [

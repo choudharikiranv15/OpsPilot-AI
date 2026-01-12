@@ -1,7 +1,6 @@
 from typing import Dict
 import json
-import subprocess
-from opspilot.utils.llm import resolve_ollama_path
+from opspilot.utils.llm import call_llama, safe_json_parse
 
 SYSTEM_PROMPT = """
 You are a senior reliability engineer.
@@ -26,8 +25,6 @@ Format:
 
 
 def verify(hypothesis: str, evidence: Dict) -> Dict:
-    ollama = resolve_ollama_path()
-
     prompt = SYSTEM_PROMPT + f"""
 HYPOTHESIS:
 {hypothesis}
@@ -37,47 +34,34 @@ EVIDENCE:
 """
 
     try:
-        process = subprocess.run(
-            [ollama, "run", "llama3"],
-            input=prompt,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=120
-        )
+        # Use multi-provider LLM system with automatic fallback
+        raw_output = call_llama(prompt, timeout=120)
 
-        if process.returncode != 0:
-            print(f"[ERROR] Verifier LLM failed: {process.stderr}")
+        if not raw_output:
+            print(f"[ERROR] Verifier LLM returned empty response")
             return {
                 "supported": False,
                 "confidence": 0.0,
                 "reason": "LLM verification failed"
             }
 
-        raw_output = process.stdout.strip()
+        # Parse JSON response using safe parser
+        result = safe_json_parse(raw_output)
 
-        # Try to extract JSON from the output
-        start_idx = raw_output.find('{')
-        end_idx = raw_output.rfind('}')
-
-        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
-            json_str = raw_output[start_idx:end_idx + 1]
-            return json.loads(json_str)
+        if result and "supported" in result:
+            return result
         else:
-            return json.loads(raw_output)
+            print(f"[ERROR] Invalid verifier response format: {raw_output}")
+            return {
+                "supported": False,
+                "confidence": 0.0,
+                "reason": "Unable to verify hypothesis"
+            }
 
-    except subprocess.TimeoutExpired:
-        print(f"[ERROR] Verifier LLM timed out after 120s")
+    except Exception as e:
+        print(f"[ERROR] Verifier failed: {e}")
         return {
             "supported": False,
             "confidence": 0.0,
-            "reason": "Verification timed out"
-        }
-    except json.JSONDecodeError as e:
-        print(f"[ERROR] Failed to parse verifier JSON: {e}")
-        print(f"[ERROR] Raw output was: {raw_output}")
-        return {
-            "supported": False,
-            "confidence": 0.0,
-            "reason": "Unable to verify hypothesis"
+            "reason": f"Verification error: {str(e)}"
         }
