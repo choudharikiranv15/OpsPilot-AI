@@ -1,8 +1,7 @@
 from typing import Dict
 import json
 import subprocess
-import shutil
-from pathlib import Path
+from opspilot.utils.llm import resolve_ollama_path
 
 SYSTEM_PROMPT = """
 You are a senior reliability engineer.
@@ -24,18 +23,6 @@ Format:
   "reason": "..."
 }
 """
-
-
-def resolve_ollama_path() -> str:
-    path = shutil.which("ollama")
-    if path:
-        return path
-
-    fallback = Path.home() / "AppData/Local/Programs/Ollama/ollama.exe"
-    if fallback.exists():
-        return str(fallback)
-
-    raise RuntimeError("Ollama not found.")
 
 
 def verify(hypothesis: str, evidence: Dict) -> Dict:

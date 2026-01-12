@@ -1,8 +1,6 @@
 from typing import Dict
 import json
-import subprocess
-import shutil
-from pathlib import Path
+from opspilot.utils.llm import call_llama, safe_json_parse
 
 
 SYSTEM_PROMPT = """
@@ -29,73 +27,6 @@ CRITICAL: Your response must be ONLY valid JSON with this exact format:
 Do not include any text before the opening { or after the closing }.
 """
 
-
-# ----------------------------
-# Ollama resolution & calling
-# ----------------------------
-
-def resolve_ollama_path() -> str:
-    ollama_path = shutil.which("ollama")
-    if ollama_path:
-        return ollama_path
-
-    fallback = Path.home() / "AppData/Local/Programs/Ollama/ollama.exe"
-    if fallback.exists():
-        return str(fallback)
-
-    raise RuntimeError("Ollama not found. Please install or add to PATH.")
-
-
-def call_llama(prompt: str, timeout: int = 60) -> str:
-    ollama = resolve_ollama_path()
-
-    try:
-        process = subprocess.run(
-            [ollama, "run", "llama3"],
-            input=prompt,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=timeout
-        )
-    except subprocess.TimeoutExpired:
-        raise RuntimeError("LLM inference timed out.")
-
-    if process.returncode != 0:
-        raise RuntimeError(process.stderr.strip())
-
-    return process.stdout.strip()
-
-
-# ----------------------------
-# Strict JSON enforcement
-# ----------------------------
-
-def safe_json_parse(raw: str) -> Dict:
-    """
-    Parse JSON strictly.
-    If parsing fails, ask the model once to correct itself.
-    """
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        correction_prompt = f"""
-The following output was NOT valid JSON.
-
-Return ONLY valid JSON.
-No explanation.
-No markdown.
-
-INVALID OUTPUT:
-{raw}
-"""
-        corrected = call_llama(correction_prompt, timeout=15)
-        return json.loads(corrected)
-
-
-# ----------------------------
-# Planner
-# ----------------------------
 
 def plan(context: Dict) -> Dict:
     """
