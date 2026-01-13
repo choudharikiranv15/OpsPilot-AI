@@ -1,0 +1,287 @@
+================================================================================
+                    OpsPilot - PyPI Deployment Guide
+================================================================================
+
+This guide walks you through publishing OpsPilot to PyPI (Python Package Index)
+so users can install it via: pip install opspilot
+
+================================================================================
+PREREQUISITES
+================================================================================
+
+1. PyPI Account Setup:
+   - Create account at: https://pypi.org/account/register/
+   - Create TestPyPI account at: https://test.pypi.org/account/register/
+   - Verify email addresses for both accounts
+
+2. API Tokens (Recommended for security):
+
+   a) Generate PyPI API Token:
+      - Go to: https://pypi.org/manage/account/token/
+      - Click "Add API token"
+      - Token name: "opspilot-upload"
+      - Scope: "Entire account" (or project-specific after first upload)
+      - Copy token (starts with "pypi-...")
+
+   b) Generate TestPyPI API Token:
+      - Go to: https://test.pypi.org/manage/account/token/
+      - Follow same steps as above
+      - Copy token
+
+3. Configure .pypirc (optional but recommended):
+
+   Create/Edit: ~/.pypirc (Linux/Mac) or %USERPROFILE%\.pypirc (Windows)
+
+   [distutils]
+   index-servers =
+       pypi
+       testpypi
+
+   [pypi]
+   username = __token__
+   password = pypi-YOUR_PYPI_TOKEN_HERE
+
+   [testpypi]
+   username = __token__
+   password = pypi-YOUR_TESTPYPI_TOKEN_HERE
+
+4. Required packages (already installed):
+   pip install build twine
+
+================================================================================
+STEP 1: PREPARE YOUR PACKAGE
+================================================================================
+
+1.1 Update Version Number (if needed):
+    - Edit: setup.py (line 10) - version="0.1.0"
+    - Edit: pyproject.toml (line 5) - version = "0.1.0"
+
+    Version format: MAJOR.MINOR.PATCH
+    - 0.1.0 - Initial release
+    - 0.1.1 - Bug fixes
+    - 0.2.0 - New features
+    - 1.0.0 - Production ready
+
+1.2 Verify README.md looks good:
+    - This will be displayed on PyPI package page
+    - Check formatting, links, examples
+
+1.3 Ensure LICENSE file exists:
+    - Currently using MIT License
+    - Must be in project root
+
+1.4 Clean previous builds:
+    rm -rf dist/ build/ *.egg-info
+
+================================================================================
+STEP 2: BUILD THE PACKAGE
+================================================================================
+
+2.1 Build distribution files:
+    cd d:/opsPilot
+    python -m build
+
+    This creates:
+    - dist/opspilot-X.X.X.tar.gz (source distribution)
+    - dist/opspilot-X.X.X-py3-none-any.whl (wheel distribution)
+
+2.2 Verify build output:
+    - Check dist/ folder for both files
+    - Warnings about subpackages are normal (they're included automatically)
+
+2.3 Inspect wheel contents (optional):
+    python -m zipfile -l dist/opspilot-0.1.0-py3-none-any.whl
+
+2.4 Test local installation:
+    pip install dist/opspilot-0.1.0-py3-none-any.whl --force-reinstall
+    opspilot --help
+    pip uninstall opspilot
+
+================================================================================
+STEP 3: TEST UPLOAD TO TestPyPI (RECOMMENDED)
+================================================================================
+
+TestPyPI is a separate instance for testing - always test here first!
+
+3.1 Upload to TestPyPI:
+    python -m twine upload --repository testpypi dist/*
+
+    OR with token directly:
+    twine upload --repository-url https://test.pypi.org/legacy/ dist/* --username __token__ --password YOUR_TOKEN
+
+3.2 View your test package:
+    https://test.pypi.org/project/opspilot/
+
+3.3 Test install from TestPyPI:
+    pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ opspilot
+
+    Note: --extra-index-url allows dependencies to come from real PyPI
+
+3.4 Verify it works:
+    opspilot --help
+    opspilot analyze
+
+3.5 Uninstall test version:
+    pip uninstall opspilot
+
+================================================================================
+STEP 4: UPLOAD TO PRODUCTION PyPI
+================================================================================
+
+WARNING: Once uploaded, you CANNOT delete or re-upload the same version!
+Make sure everything works in TestPyPI first.
+
+4.1 Upload to PyPI:
+    python -m twine upload dist/*
+
+    OR with token directly:
+    twine upload dist/* --username __token__ --password YOUR_PYPI_TOKEN
+
+4.2 Confirm upload:
+    - Check output for success message
+    - Visit: https://pypi.org/project/opspilot/
+
+4.3 Test public installation:
+    pip install opspilot
+
+4.4 Test with optional dependencies:
+    pip install opspilot[redis]
+    pip install opspilot[all]
+    pip install opspilot[dev]
+
+================================================================================
+STEP 5: POST-RELEASE TASKS
+================================================================================
+
+5.1 Tag the release in Git:
+    git tag -a v0.1.0 -m "Release version 0.1.0"
+    git push origin v0.1.0
+
+5.2 Create GitHub Release:
+    - Go to: https://github.com/choudharikiranv15/opspilot/releases/new
+    - Tag: v0.1.0
+    - Title: "OpsPilot v0.1.0 - Initial Release"
+    - Description: Copy release notes from CHANGELOG or README
+    - Attach: dist/opspilot-0.1.0.tar.gz
+
+5.3 Update README badges (optional):
+    Add PyPI version badge:
+    ![PyPI](https://img.shields.io/pypi/v/opspilot)
+    ![Python](https://img.shields.io/pypi/pyversions/opspilot)
+    ![Downloads](https://img.shields.io/pypi/dm/opspilot)
+
+5.4 Announce:
+    - LinkedIn post with project highlights
+    - Twitter/X announcement
+    - Reddit: r/Python, r/devops, r/MachineLearning
+    - HackerNews: Show HN post
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Issue: "The user 'username' isn't allowed to upload"
+Fix: Use API token instead of username/password
+
+Issue: "File already exists"
+Fix: You cannot re-upload same version. Increment version number.
+
+Issue: "Invalid distribution"
+Fix: Rebuild package with: rm -rf dist/ && python -m build
+
+Issue: "Package name already taken"
+Fix: opspilot should be available. If not, choose different name.
+
+Issue: Dependencies not installing
+Fix: Check install_requires in setup.py matches actual requirements
+
+Issue: CLI command not found after install
+Fix: Check entry_points in setup.py, ensure cli.py has proper app export
+
+================================================================================
+BEST PRACTICES
+================================================================================
+
+1. Semantic Versioning:
+   - 0.x.x = Development/Beta
+   - 1.0.0 = First stable release
+   - x.Y.0 = New features (increment Y)
+   - x.y.Z = Bug fixes (increment Z)
+
+2. Always test on TestPyPI before production upload
+
+3. Keep CHANGELOG.md updated with each release
+
+4. Never commit API tokens to Git
+
+5. Use .gitignore to exclude:
+   - dist/
+   - build/
+   - *.egg-info/
+   - __pycache__/
+
+6. Update documentation with each release
+
+7. Respond to issues and PRs on GitHub
+
+================================================================================
+UPDATING TO NEW VERSION
+================================================================================
+
+1. Make code changes
+2. Update version in setup.py and pyproject.toml
+3. Update CHANGELOG.md
+4. Clean and rebuild: rm -rf dist/ && python -m build
+5. Test on TestPyPI
+6. Upload to PyPI
+7. Tag release in Git
+8. Create GitHub Release
+
+================================================================================
+USEFUL COMMANDS REFERENCE
+================================================================================
+
+# Clean build artifacts
+rm -rf dist/ build/ *.egg-info
+
+# Build package
+python -m build
+
+# Check package with twine
+python -m twine check dist/*
+
+# Upload to TestPyPI
+python -m twine upload --repository testpypi dist/*
+
+# Upload to PyPI
+python -m twine upload dist/*
+
+# Install from TestPyPI
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ opspilot
+
+# Install from PyPI
+pip install opspilot
+
+# Install with extras
+pip install opspilot[all]
+
+# Install in development mode (for local development)
+pip install -e .
+
+# Uninstall
+pip uninstall opspilot
+
+================================================================================
+LINKS
+================================================================================
+
+PyPI:           https://pypi.org/project/opspilot/
+TestPyPI:       https://test.pypi.org/project/opspilot/
+GitHub:         https://github.com/choudharikiranv15/opspilot
+Documentation:  https://github.com/choudharikiranv15/opspilot#readme
+Issues:         https://github.com/choudharikiranv15/opspilot/issues
+
+PyPI Guide:     https://packaging.python.org/tutorials/packaging-projects/
+Twine Docs:     https://twine.readthedocs.io/
+
+================================================================================
