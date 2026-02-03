@@ -1,4 +1,4 @@
-# OpsPilot Architecture 🏗️
+# OpsPilot-AI Architecture 🏗️
 
 > Production-grade multi-agent AI system for autonomous incident analysis and resolution
 
@@ -14,7 +14,7 @@
 
 ## 🎯 System Overview
 
-OpsPilot is a **production-grade incident analysis system** that uses specialized AI agents, multi-provider LLM routing, and Redis-based memory to automatically diagnose and resolve runtime issues with enterprise-level reliability.
+OpsPilot-AI is a **production-grade incident analysis system** that uses specialized AI agents, multi-provider LLM routing, and Redis-based memory to automatically diagnose and resolve runtime issues with enterprise-level reliability.
 
 ### 🎨 Core Design Principles
 
