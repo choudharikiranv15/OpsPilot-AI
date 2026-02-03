@@ -56,7 +56,7 @@ pip install opspilot-ai[all]
 **From Source:**
 ```bash
 # Clone repository
-git clone https://github.com/choudharikiranv15/opspilot.git
+git clone https://github.com/choudharikiranv15/OpsPilot-AI.git
 cd opspilot
 
 # Install in development mode

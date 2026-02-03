@@ -13,7 +13,7 @@ setup(
     description="AI-powered production incident analysis tool using multi-agent systems",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/choudharikiranv15/opspilot",
+    url="https://github.com/choudharikiranv15/OpsPilot-AI",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -64,8 +64,8 @@ setup(
     },
     keywords="ai mlops devops incident-analysis sre production-monitoring agentic-ai",
     project_urls={
-        "Bug Reports": "https://github.com/choudharikiranv15/opspilot/issues",
-        "Source": "https://github.com/choudharikiranv15/opspilot",
-        "Documentation": "https://github.com/choudharikiranv15/opspilot#readme",
+        "Bug Reports": "https://github.com/choudharikiranv15/OpsPilot-AI/issues",
+        "Source": "https://github.com/choudharikiranv15/OpsPilot-AI",
+        "Documentation": "https://github.com/choudharikiranv15/OpsPilot-AI#readme",
     },
 )

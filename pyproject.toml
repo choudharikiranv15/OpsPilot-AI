@@ -77,11 +77,11 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/choudharikiranv15/opspilot"
-Documentation = "https://github.com/choudharikiranv15/opspilot#readme"
-Repository = "https://github.com/choudharikiranv15/opspilot"
-"Bug Tracker" = "https://github.com/choudharikiranv15/opspilot/issues"
-Changelog = "https://github.com/choudharikiranv15/opspilot/releases"
+Homepage = "https://github.com/choudharikiranv15/OpsPilot-AI"
+Documentation = "https://github.com/choudharikiranv15/OpsPilot-AI#readme"
+Repository = "https://github.com/choudharikiranv15/OpsPilot-AI"
+"Bug Tracker" = "https://github.com/choudharikiranv15/OpsPilot-AI/issues"
+Changelog = "https://github.com/choudharikiranv15/OpsPilot-AI/releases"
 
 [project.scripts]
 opspilot = "opspilot.cli:app"
