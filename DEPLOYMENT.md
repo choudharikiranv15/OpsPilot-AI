@@ -1,8 +1,8 @@
-# OpsPilot Deployment Guide
+# OpsPilot-AI Deployment Guide
 
 ## 🎯 Deployment Options
 
-OpsPilot can be deployed in 3 ways depending on your use case.
+OpsPilot-AI can be deployed in 3 ways depending on your use case.
 
 ---
 
@@ -12,7 +12,7 @@ OpsPilot can be deployed in 3 ways depending on your use case.
 
 ```bash
 # Install from PyPI
-pip install opspilot
+pip install opspilot-ai
 
 # Install Ollama (required for LLM)
 # macOS/Linux

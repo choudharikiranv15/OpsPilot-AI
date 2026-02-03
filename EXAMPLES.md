@@ -1,8 +1,8 @@
-# OpsPilot Real-World Examples
+# OpsPilot-AI Real-World Examples
 
-## 🎯 What OpsPilot Does (In Plain English)
+## 🎯 What OpsPilot-AI Does (In Plain English)
 
-**OpsPilot is like having a senior SRE sitting next to you, analyzing production incidents in real-time.**
+**OpsPilot-AI is like having a senior SRE sitting next to you, analyzing production incidents in real-time.**
 
 ---
 
@@ -16,7 +16,7 @@ Status: 503 Service Unavailable
 Users affected: 10,000+
 ```
 
-### Without OpsPilot (Old Way)
+### Without OpsPilot-AI (Old Way)
 ```bash
 # Engineer manually does:
 ssh prod-server-01
@@ -27,7 +27,7 @@ grep "ERROR" | grep "500"         # Finds 200 errors
 # Time to diagnose: 30-60 minutes
 ```
 
-### With OpsPilot (AI Way)
+### With OpsPilot-AI (AI Way)
 ```bash
 # Engineer simply runs:
 opspilot analyze --log-source "s3://prod-logs/api-server.log" --deployment-analysis
@@ -81,7 +81,7 @@ Risk: HIGH (connection pool settings modified)
 ### The Problem
 PM reports: "Users are complaining about slow checkout - it's timing out!"
 
-### With OpsPilot
+### With OpsPilot-AI
 ```bash
 # DevOps engineer runs:
 opspilot analyze --log-source "k8s://production/checkout-service"
@@ -128,7 +128,7 @@ Error Patterns Detected:
 ### The Problem
 Server keeps restarting with OOM (Out of Memory) errors
 
-### With OpsPilot
+### With OpsPilot-AI
 ```bash
 opspilot analyze --log-source "cw://prod-app/stream-2024-01-12"
 
@@ -179,7 +179,7 @@ Error Patterns:
 ### The Problem
 Service A can't talk to Service B - random 502 errors
 
-### With OpsPilot
+### With OpsPilot-AI
 ```bash
 opspilot analyze \
   --log-source "k8s://production/service-a" \
@@ -231,7 +231,7 @@ Error Patterns:
 ### The Problem
 API response time went from 200ms to 5 seconds overnight
 
-### With OpsPilot
+### With OpsPilot-AI
 ```bash
 opspilot analyze \
   --log-source "https://logs.company.com/api-prod.log" \
