@@ -1,14 +1,18 @@
-# OpsPilot 🤖
+# OpsPilot-AI 🤖
+
+[![PyPI version](https://badge.fury.io/py/opspilot-ai.svg)](https://pypi.org/project/opspilot-ai/)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > An intelligent agentic AI CLI tool for automated incident analysis and error resolution
 
-OpsPilot is your AI-powered Site Reliability Engineer that analyzes your projects, identifies runtime issues, and suggests safe fixes—all through a simple command-line interface.
+OpsPilot-AI is your AI-powered Site Reliability Engineer that analyzes your projects, identifies runtime issues, and suggests safe fixes—all through a simple command-line interface.
 
 ---
 
-## 🎯 What is OpsPilot?
+## 🎯 What is OpsPilot-AI?
 
-OpsPilot uses a **multi-agent AI architecture** to understand your project's context, form hypotheses about runtime issues, and provide evidence-based fix recommendations. Think of it as having an experienced SRE on your team, available 24/7.
+OpsPilot-AI uses a **multi-agent AI architecture** to understand your project's context, form hypotheses about runtime issues, and provide evidence-based fix recommendations. Think of it as having an experienced SRE on your team, available 24/7.
 
 ### Key Capabilities
 
@@ -37,18 +41,25 @@ OpsPilot uses a **multi-agent AI architecture** to understand your project's con
 
 ### Installation
 
+**From PyPI (Recommended):**
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/opspilot.git
-cd opspilot
-
 # Basic installation
-pip install -e .
+pip install opspilot-ai
 
 # With Redis support (recommended for production)
-pip install -e ".[redis]"
+pip install opspilot-ai[redis]
 
 # With all integrations (Redis + AWS + Kubernetes)
+pip install opspilot-ai[all]
+```
+
+**From Source:**
+```bash
+# Clone repository
+git clone https://github.com/choudharikiranv15/opspilot.git
+cd opspilot
+
+# Install in development mode
 pip install -e ".[all]"
 ```
 
@@ -103,7 +114,7 @@ opspilot analyze --verbose --debug
 Similar issues detected from past runs:
 - Redis connection issue caused by network or Redis server downtime (confidence 0.8)
 
-OpsPilot initialized
+OpsPilot-AI initialized
 Project detected: /your/project
 
 Planner Agent reasoning...
@@ -141,7 +152,7 @@ Enable connection pooling and reasonable timeouts to improve reliability.
 
 ## 🏗️ Architecture
 
-OpsPilot implements a **multi-agent agentic architecture** with four specialized agents:
+OpsPilot-AI implements a **multi-agent agentic architecture** with four specialized agents:
 
 1. **Planner Agent** - Analyzes project context and forms hypotheses about root causes
 2. **Verifier Agent** - Collects evidence and validates hypotheses with confidence scoring
@@ -166,7 +177,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design documentation.
 ## 🧩 How It Works
 
 ### 1. Context Collection
-OpsPilot gathers information from multiple sources:
+OpsPilot-AI gathers information from multiple sources:
 - **Logs**: Recent error logs and exceptions
 - **Environment**: Environment variables and configurations
 - **Dependencies**: Project dependencies (requirements.txt, package.json)
@@ -195,7 +206,7 @@ If confidence ≥ 0.6, the Fixer agent:
 - **Never auto-applies changes** (dry-run only for safety)
 
 ### 5. Learning from History
-OpsPilot maintains Redis-based memory of past issues:
+OpsPilot-AI maintains Redis-based memory of past issues:
 - Stores hypotheses, confidence scores, and evidence with automatic TTL
 - User-isolated storage using project path hashing
 - Detects similar issues in future runs with sub-second lookups
@@ -347,3 +358,9 @@ For questions or feedback, please open an issue on GitHub.
 ---
 
 **Built with ❤️ using agentic AI principles**
+
+---
+
+## 📦 PyPI
+
+This package is available on PyPI: [opspilot-ai](https://pypi.org/project/opspilot-ai/)
