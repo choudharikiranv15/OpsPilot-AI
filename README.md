@@ -28,85 +28,195 @@ OpsPilot-AI uses a **multi-agent AI architecture** to understand your project's 
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (2 Minutes Setup)
 
-### Prerequisites
+### Step 1: Install OpsPilot-AI
 
-- Python 3.8 or higher
-- At least ONE of the following LLM providers:
-  - [Ollama](https://ollama.ai/) (local, free, recommended)
-  - Google Gemini API key (free tier)
-  - OpenRouter API key (free models available)
-  - HuggingFace API token (free tier)
-
-### Installation
-
-**From PyPI (Recommended):**
 ```bash
-# Basic installation
 pip install opspilot-ai
-
-# With Redis support (recommended for production)
-pip install opspilot-ai[redis]
-
-# With all integrations (Redis + AWS + Kubernetes)
-pip install opspilot-ai[all]
 ```
 
-**From Source:**
-```bash
-# Clone repository
-git clone https://github.com/choudharikiranv15/OpsPilot-AI.git
-cd opspilot
+### Step 2: Setup LLM (Choose ONE Option)
 
-# Install in development mode
-pip install -e ".[all]"
-```
+OpsPilot-AI needs an LLM to analyze your code. Choose **one** of these options:
 
-### LLM Setup
+---
 
-**Option 1: Ollama (Recommended - Local & Free)**
+#### Option A: Ollama (Recommended - Free & Private)
+
+Ollama runs locally on your machine. Your code never leaves your computer.
+
+**For macOS/Linux:**
 ```bash
 # Install Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
 
-# Pull Llama 3 model
+# Pull the AI model (one-time download, ~4GB)
+ollama pull llama3
+
+# Verify it's running
+ollama list
+```
+
+**For Windows:**
+1. Download Ollama from [ollama.ai/download](https://ollama.ai/download)
+2. Install and run the application
+3. Open terminal and run:
+```bash
 ollama pull llama3
 ```
 
-**Option 2: Cloud Providers (FREE tiers)**
-```bash
-# Copy environment template
-cp .env.example .env
+---
 
-# Add your API keys to .env
-# GOOGLE_API_KEY=your-key-here
-# OPENROUTER_API_KEY=your-key-here
-# HUGGINGFACE_API_KEY=your-key-here
+#### Option B: Cloud API (No Local Install Required)
+
+Use cloud-based LLMs with free tiers. Set **one** of these environment variables:
+
+**Google Gemini (Recommended Cloud Option):**
+```bash
+# Get free API key: https://makersuite.google.com/app/apikey
+export GOOGLE_API_KEY="your-api-key-here"
 ```
 
-See [FREE_LLM_SETUP.md](FREE_LLM_SETUP.md) for detailed setup instructions.
+**OpenRouter (100+ Models Available):**
+```bash
+# Get free API key: https://openrouter.ai/keys
+export OPENROUTER_API_KEY="your-api-key-here"
+```
 
-### Usage
+**HuggingFace:**
+```bash
+# Get free token: https://huggingface.co/settings/tokens
+export HUGGINGFACE_API_KEY="your-api-key-here"
+```
 
-Navigate to your project directory and run:
+**Windows Users (set environment variable):**
+```cmd
+set GOOGLE_API_KEY=your-api-key-here
+```
+
+---
+
+### Step 3: Analyze Your Project
 
 ```bash
-# Basic analysis
-opspilot analyze
+# Navigate to your project
+cd /path/to/your/project
 
+# Run analysis
+opspilot analyze
+```
+
+That's it! OpsPilot-AI will analyze your project and provide diagnosis.
+
+---
+
+## 📖 Usage Examples
+
+### Basic Commands
+
+```bash
+# Quick analysis (fastest)
+opspilot analyze --mode quick
+
+# Deep analysis (thorough, recommended)
+opspilot analyze --mode deep
+
+# Verbose output (see what's happening)
+opspilot analyze --verbose
+```
+
+### Advanced Commands
+
+```bash
 # Analyze with production logs from S3
 opspilot analyze --log-source s3://my-bucket/logs/app.log
 
-# Analyze with deployment correlation
+# Analyze with deployment correlation (links errors to git commits)
 opspilot analyze --deployment-analysis --since-hours 48
 
-# JSON output for automation
+# JSON output for CI/CD automation
 opspilot analyze --json --mode quick
 
-# Verbose output for debugging
+# Analyze specific log file
+opspilot analyze --log-source /var/log/myapp/error.log
+
+# Full debugging output
 opspilot analyze --verbose --debug
 ```
+
+### Analysis Modes
+
+| Mode | Speed | LLM Calls | Use Case |
+|------|-------|-----------|----------|
+| `quick` | Fast | 1 | Quick check, CI/CD pipelines |
+| `deep` | Thorough | Up to 4 | Detailed incident analysis |
+| `explain` | Instant | 0 | Context gathering only (no LLM) |
+
+### Installation Options
+
+```bash
+# Basic (just the CLI)
+pip install opspilot-ai
+
+# With Redis support (remembers past incidents)
+pip install "opspilot-ai[redis]"
+
+# With AWS support (S3, CloudWatch logs)
+pip install "opspilot-ai[aws]"
+
+# With Kubernetes support (K8s pod logs)
+pip install "opspilot-ai[k8s]"
+
+# Everything included
+pip install "opspilot-ai[all]"
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### "No LLM providers available"
+
+You need to set up an LLM. Choose one:
+
+```bash
+# Option 1: Install Ollama (recommended)
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull llama3
+
+# Option 2: Set a cloud API key
+export GOOGLE_API_KEY="your-key"
+```
+
+### "Ollama connection refused"
+
+Make sure Ollama is running:
+```bash
+# Start Ollama service
+ollama serve
+
+# In another terminal, verify it works
+ollama list
+```
+
+### "No logs found"
+
+OpsPilot-AI looks for logs in these locations:
+- `./logs/` directory
+- `*.log` files in project root
+- Files specified with `--log-source`
+
+```bash
+# Specify log file directly
+opspilot analyze --log-source ./my-app/error.log
+```
+
+### "Context collected: 0 env vars"
+
+Make sure you have a `.env` file in your project directory, or environment variables set.
+
+---
 
 **Example Output:**
 
