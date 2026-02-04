@@ -121,7 +121,7 @@ class OllamaProvider(LLMProvider):
 class OpenRouterProvider(LLMProvider):
     """OpenRouter provider - access to many free open-source models."""
 
-    def __init__(self, model: str = "google/gemini-2.0-flash-exp:free", timeout: int = 60):
+    def __init__(self, model: str = "openrouter/free", timeout: int = 60):
         super().__init__(timeout)
         self.model = model
         self.api_key = os.getenv("OPENROUTER_API_KEY")  # Free tier available
@@ -159,7 +159,15 @@ class OpenRouterProvider(LLMProvider):
                 json=payload,
                 timeout=self.timeout
             )
-            response.raise_for_status()
+
+            # Try to get more details from error response
+            if not response.ok:
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", response.text)
+                except Exception:
+                    error_msg = response.text or f"HTTP {response.status_code}"
+                raise RuntimeError(f"OpenRouter API error ({response.status_code}): {error_msg}")
 
             data = response.json()
             return data["choices"][0]["message"]["content"]

@@ -47,9 +47,26 @@ load_dotenv(verbose=False, override=False)  # Don't override existing env vars
 app = typer.Typer(help="OpsPilot - Agentic AI CLI for incident analysis")
 console = Console()
 
+__version__ = "0.1.2"
+
+
+def version_callback(value: bool):
+    if value:
+        console.print(f"OpsPilot version {__version__}")
+        raise typer.Exit()
+
 
 @app.callback()
-def main():
+def main(
+    version: bool = typer.Option(
+        None,
+        "--version",
+        "-V",
+        callback=version_callback,
+        is_eager=True,
+        help="Show OpsPilot version and exit"
+    )
+):
     """
     OpsPilot CLI entry point.
     """
