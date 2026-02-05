@@ -1,6 +1,18 @@
 import typer
 from rich.console import Console
 from pathlib import Path
+import sys
+import os
+
+# Fix Windows console encoding for Unicode characters
+if sys.platform == "win32":
+    # Enable UTF-8 mode on Windows
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, OSError):
+        pass  # Fallback for older Python or non-standard terminals
 from opspilot.agents.planner import plan
 import json
 import os
@@ -47,7 +59,7 @@ load_dotenv(verbose=False, override=False)  # Don't override existing env vars
 app = typer.Typer(help="OpsPilot - Agentic AI CLI for incident analysis")
 console = Console()
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 
 def version_callback(value: bool):
