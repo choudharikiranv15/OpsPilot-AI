@@ -4,11 +4,43 @@ import pytest
 from unittest.mock import patch, Mock
 from opspilot.utils.llm_providers import (
     OllamaProvider,
-    OpenAIProvider,
+    OpenRouterProvider,
     AnthropicProvider,
     GeminiProvider,
-    LLMRouter
+    HuggingFaceProvider,
+    LLMRouter,
+    CircuitBreaker,
+    ProviderStats,
 )
+from opspilot.exceptions import LLMError, LLMTimeoutError, LLMRateLimitError
+
+
+class TestCircuitBreaker:
+    """Test circuit breaker functionality."""
+
+    def test_initial_state(self):
+        """Test circuit breaker starts closed."""
+        cb = CircuitBreaker()
+        assert cb.is_open is False
+        assert cb.failure_count == 0
+        assert cb.can_attempt() is True
+
+    def test_opens_after_threshold(self):
+        """Test circuit opens after threshold failures."""
+        cb = CircuitBreaker()
+        for _ in range(5):  # CIRCUIT_BREAKER_THRESHOLD = 5
+            cb.record_failure()
+        assert cb.is_open is True
+        assert cb.can_attempt() is False
+
+    def test_resets_on_success(self):
+        """Test circuit resets on success."""
+        cb = CircuitBreaker()
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_success()
+        assert cb.is_open is False
+        assert cb.failure_count == 0
 
 
 class TestOllamaProvider:
@@ -22,7 +54,6 @@ class TestOllamaProvider:
         mock_run.return_value = mock_result
 
         provider = OllamaProvider()
-        # Mock path resolution
         with patch.object(provider, '_resolve_ollama_path', return_value='/usr/bin/ollama'):
             assert provider.is_available() is True
 
@@ -33,37 +64,49 @@ class TestOllamaProvider:
             assert provider.is_available() is False
 
 
-class TestOpenAIProvider:
-    """Test OpenAI provider."""
+class TestOpenRouterProvider:
+    """Test OpenRouter provider."""
 
     def test_availability_with_api_key(self):
-        """Test OpenAI availability with API key."""
-        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
-            provider = OpenAIProvider()
+        """Test OpenRouter availability with API key."""
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            provider = OpenRouterProvider()
             assert provider.is_available() is True
 
     def test_availability_without_api_key(self):
-        """Test OpenAI availability without API key."""
+        """Test OpenRouter availability without API key."""
         with patch.dict('os.environ', {}, clear=True):
-            provider = OpenAIProvider()
+            provider = OpenRouterProvider()
             assert provider.is_available() is False
 
     @patch('opspilot.utils.llm_providers.requests.post')
     def test_call_success(self, mock_post):
-        """Test successful OpenAI API call."""
+        """Test successful OpenRouter API call."""
         mock_response = Mock()
+        mock_response.ok = True
         mock_response.json.return_value = {
             "choices": [{
                 "message": {"content": "Test response"}
             }]
         }
-        mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
-            provider = OpenAIProvider()
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            provider = OpenRouterProvider()
             result = provider.call("Test prompt")
             assert result == "Test response"
+
+    @patch('opspilot.utils.llm_providers.requests.post')
+    def test_rate_limit_error(self, mock_post):
+        """Test rate limit error handling."""
+        mock_response = Mock()
+        mock_response.status_code = 429
+        mock_post.return_value = mock_response
+
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            provider = OpenRouterProvider()
+            with pytest.raises(LLMRateLimitError):
+                provider.call("Test prompt")
 
 
 class TestAnthropicProvider:
@@ -116,6 +159,7 @@ class TestGeminiProvider:
     def test_call_success(self, mock_post):
         """Test successful Gemini API call."""
         mock_response = Mock()
+        mock_response.ok = True
         mock_response.json.return_value = {
             "candidates": [{
                 "content": {
@@ -123,13 +167,28 @@ class TestGeminiProvider:
                 }
             }]
         }
-        mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
         with patch.dict('os.environ', {'GOOGLE_API_KEY': 'test-key'}):
             provider = GeminiProvider()
             result = provider.call("Test prompt")
             assert result == "Test response"
+
+
+class TestHuggingFaceProvider:
+    """Test HuggingFace provider."""
+
+    def test_availability_with_api_key(self):
+        """Test HuggingFace availability with API key."""
+        with patch.dict('os.environ', {'HUGGINGFACE_API_KEY': 'test-key'}):
+            provider = HuggingFaceProvider()
+            assert provider.is_available() is True
+
+    def test_availability_without_api_key(self):
+        """Test HuggingFace availability without API key."""
+        with patch.dict('os.environ', {}, clear=True):
+            provider = HuggingFaceProvider()
+            assert provider.is_available() is False
 
 
 class TestLLMRouter:
@@ -150,7 +209,7 @@ class TestLLMRouter:
         with patch.object(router.providers[0], 'is_available', return_value=False):
             # Mock second provider to succeed
             with patch.object(router.providers[1], 'is_available', return_value=True):
-                with patch.object(router.providers[1], 'call', return_value="Success"):
+                with patch.object(router.providers[1], 'call_with_retry', return_value="Success"):
                     result = router.call("Test prompt")
                     assert result == "Success"
 
@@ -158,15 +217,17 @@ class TestLLMRouter:
         """Test error when all providers fail."""
         router = LLMRouter()
 
-        # Mock all providers to fail
+        # Mock all providers to be unavailable
         for provider in router.providers:
-            with patch.object(provider, 'is_available', return_value=False):
-                pass
+            provider.stats.circuit_breaker.is_open = False
 
-        with pytest.raises(RuntimeError) as exc_info:
-            router.call("Test prompt")
-
-        assert "All LLM providers failed" in str(exc_info.value)
+        with patch.object(router.providers[0], 'is_available', return_value=False):
+            with patch.object(router.providers[1], 'is_available', return_value=False):
+                with patch.object(router.providers[2], 'is_available', return_value=False):
+                    with patch.object(router.providers[3], 'is_available', return_value=False):
+                        with pytest.raises(LLMError) as exc_info:
+                            router.call("Test prompt")
+                        assert "All LLM providers failed" in str(exc_info.value)
 
     def test_json_parsing(self):
         """Test JSON parsing from LLM output."""
@@ -180,6 +241,25 @@ class TestLLMRouter:
         wrapped = 'Here is the JSON:\n{"key": "value"}\nEnd of JSON'
         result = router.safe_json_parse(wrapped)
         assert result == {"key": "value"}
+
+    def test_json_parsing_markdown(self):
+        """Test JSON parsing from markdown code blocks."""
+        router = LLMRouter()
+
+        # Test JSON in markdown code block
+        markdown = '```json\n{"key": "value"}\n```'
+        result = router.safe_json_parse(markdown)
+        assert result == {"key": "value"}
+
+    def test_provider_stats(self):
+        """Test provider statistics."""
+        router = LLMRouter()
+        stats = router.get_provider_stats()
+
+        assert 'OllamaProvider' in stats
+        assert 'GeminiProvider' in stats
+        assert 'success_rate' in stats['OllamaProvider']
+        assert 'circuit_open' in stats['OllamaProvider']
 
 
 if __name__ == '__main__':
