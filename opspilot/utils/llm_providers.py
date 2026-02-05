@@ -281,7 +281,7 @@ class AnthropicProvider(LLMProvider):
 class GeminiProvider(LLMProvider):
     """Google Gemini provider."""
 
-    def __init__(self, model: str = "gemini-2.0-flash-exp", timeout: int = 60):
+    def __init__(self, model: str = "gemini-2.0-flash", timeout: int = 60):
         super().__init__(timeout)
         self.model = model
         self.api_key = os.getenv("GOOGLE_API_KEY")
@@ -315,7 +315,15 @@ class GeminiProvider(LLMProvider):
                 json=payload,
                 timeout=self.timeout
             )
-            response.raise_for_status()
+
+            # Try to get more details from error response
+            if not response.ok:
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", response.text)
+                except Exception:
+                    error_msg = response.text or f"HTTP {response.status_code}"
+                raise RuntimeError(f"Gemini API error ({response.status_code}): {error_msg}")
 
             data = response.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]

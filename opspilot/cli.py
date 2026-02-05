@@ -99,6 +99,22 @@ def analyze(
         "--log-source",
         help="Production log source: URL, s3://bucket/key, k8s://namespace/pod, cw://log-group/stream, or file path"
     ),
+    error_input: str = typer.Option(
+        None,
+        "--error",
+        "-e",
+        help="Paste build/runtime error text directly"
+    ),
+    stdin_input: bool = typer.Option(
+        False,
+        "--stdin",
+        help="Read error input from stdin (for piping: cmd 2>&1 | opspilot analyze --stdin)"
+    ),
+    build_cmd: str = typer.Option(
+        None,
+        "--build-cmd",
+        help="Run build command and capture errors (e.g., 'ng serve', 'npm run build')"
+    ),
     deployment_analysis: bool = typer.Option(
         False,
         "--deployment-analysis",
@@ -176,6 +192,59 @@ def analyze(
             f"[bold green]Project detected[/bold green]: {project_root}")
         console.print(f"Config loaded: {bool(config)}")
 
+        # Capture build/runtime errors from various sources
+        build_errors = None
+        error_source = None
+
+        if stdin_input:
+            import sys
+            import select
+            # Check if there's data on stdin (non-blocking)
+            if sys.platform == "win32":
+                # Windows: just try to read if --stdin is specified
+                if not sys.stdin.isatty():
+                    build_errors = sys.stdin.read()
+                    error_source = "stdin"
+            else:
+                # Unix: use select to check for available input
+                if select.select([sys.stdin], [], [], 0.1)[0]:
+                    build_errors = sys.stdin.read()
+                    error_source = "stdin"
+
+            if build_errors:
+                console.print(f"[cyan]Captured {len(build_errors)} bytes from stdin[/cyan]")
+            else:
+                console.print("[yellow]Warning: --stdin specified but no input received[/yellow]")
+
+        elif error_input:
+            build_errors = error_input
+            error_source = "cli"
+            console.print(f"[cyan]Using error input from --error flag ({len(build_errors)} bytes)[/cyan]")
+
+        elif build_cmd:
+            import subprocess
+            console.print(f"[cyan]Running build command: {build_cmd}[/cyan]")
+            try:
+                result = subprocess.run(
+                    build_cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    cwd=project_root
+                )
+                # Capture both stdout and stderr
+                build_errors = result.stdout + result.stderr
+                error_source = "build_cmd"
+                if result.returncode != 0:
+                    console.print(f"[yellow]Build command failed (exit code {result.returncode})[/yellow]")
+                else:
+                    console.print("[green]Build command completed[/green]")
+            except subprocess.TimeoutExpired:
+                console.print("[red]Build command timed out after 120s[/red]")
+            except Exception as e:
+                console.print(f"[red]Failed to run build command: {e}[/red]")
+
         # Fetch production logs if specified
         production_logs = None
         if log_source:
@@ -192,8 +261,10 @@ def analyze(
             "env": read_env(project_root),
             "docker": read_docker_files(project_root),
             "dependencies": read_dependencies(project_root),
+            "build_errors": build_errors,
         }
         console.print("[cyan]Context collected:[/cyan]")
+        console.print(f"• Build errors: {bool(build_errors)} ({error_source or 'none'})")
         console.print(f"• Logs found: {bool(state.context['logs'])} ({'production' if production_logs else 'local'})")
         console.print(f"• Env vars: {len(state.context['env'])}")
         console.print(f"• Docker config: {bool(state.context['docker'])}")
