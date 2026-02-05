@@ -47,7 +47,7 @@ load_dotenv(verbose=False, override=False)  # Don't override existing env vars
 app = typer.Typer(help="OpsPilot - Agentic AI CLI for incident analysis")
 console = Console()
 
-__version__ = "0.1.2"
+__version__ = "0.1.4"
 
 
 def version_callback(value: bool):
