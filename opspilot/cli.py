@@ -3,6 +3,8 @@ from rich.console import Console
 from pathlib import Path
 import sys
 import os
+import json
+from datetime import datetime
 
 # Fix Windows console encoding for Unicode characters
 if sys.platform == "win32":
@@ -13,11 +15,12 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     except (AttributeError, OSError):
         pass  # Fallback for older Python or non-standard terminals
-from opspilot.agents.planner import plan
-import json
-import os
+
 from dotenv import load_dotenv
+from opspilot.agents.planner import plan
 from opspilot.state import AgentState
+from opspilot.constants import VERSION, CONFIDENCE_THRESHOLD, BUILD_CMD_TIMEOUT
+from opspilot.logger import setup_logging, get_logger
 from opspilot.config import load_config
 from opspilot.context import collect_context
 from opspilot.context.project import scan_project_tree
@@ -49,7 +52,6 @@ try:
 except Exception:
     redis_memory = None  # Will use file-based fallback
 from opspilot.graph.engine import run_agent
-from opspilot.state import AgentState
 
 
 
@@ -59,7 +61,7 @@ load_dotenv(verbose=False, override=False)  # Don't override existing env vars
 app = typer.Typer(help="OpsPilot - Agentic AI CLI for incident analysis")
 console = Console()
 
-__version__ = "0.1.5"
+__version__ = VERSION
 
 
 def version_callback(value: bool):
@@ -83,6 +85,184 @@ def main(
     OpsPilot CLI entry point.
     """
     pass
+
+
+def save_report(output_file: str, result: dict, console: Console):
+    """
+    Save analysis report to file.
+
+    Supports .json, .md, and .txt formats.
+    """
+    output_path = Path(output_file)
+    ext = output_path.suffix.lower()
+
+    try:
+        if ext == ".json":
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, default=str)
+            console.print(f"[green]Report saved to {output_file}[/green]")
+
+        elif ext == ".md":
+            md_content = generate_markdown_report(result)
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(md_content)
+            console.print(f"[green]Markdown report saved to {output_file}[/green]")
+
+        elif ext == ".txt":
+            txt_content = generate_text_report(result)
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(txt_content)
+            console.print(f"[green]Text report saved to {output_file}[/green]")
+
+        else:
+            # Default to JSON
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, default=str)
+            console.print(f"[green]Report saved to {output_file} (JSON format)[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Failed to save report: {e}[/red]")
+
+
+def generate_markdown_report(result: dict) -> str:
+    """Generate a markdown-formatted report."""
+    lines = [
+        "# OpsPilot Analysis Report",
+        "",
+        f"**Generated:** {result.get('timestamp', 'N/A')}",
+        f"**Project:** {result.get('project', 'N/A')}",
+        "",
+        "## Diagnosis",
+        "",
+        f"**Hypothesis:** {result.get('hypothesis', 'No hypothesis generated')}",
+        "",
+        f"**Confidence:** {result.get('confidence', 0.0)}",
+        "",
+    ]
+
+    # Verdict
+    verdict = result.get("verdict")
+    if verdict:
+        lines.extend([
+            "### Verification",
+            "",
+            f"- **Supported:** {verdict.get('supported', False)}",
+            f"- **Confidence:** {verdict.get('confidence', 0.0)}",
+            f"- **Reason:** {verdict.get('reason', 'N/A')}",
+            "",
+        ])
+
+    # Evidence
+    evidence = result.get("evidence", {})
+    if evidence:
+        lines.extend([
+            "## Evidence",
+            "",
+        ])
+
+        if evidence.get("severity"):
+            lines.append(f"**Severity:** {evidence['severity']}")
+
+        if evidence.get("build_errors"):
+            build = evidence["build_errors"]
+            lines.extend([
+                "",
+                "### Build Errors",
+                "",
+                f"- **Error Count:** {build.get('error_count', 0)}",
+                f"- **Error Types:** {', '.join(build.get('error_types', []))}",
+                f"- **Files Affected:** {', '.join(build.get('files_affected', []))}",
+            ])
+
+        lines.append("")
+
+    # Suggestions
+    suggestions = result.get("suggestions", [])
+    if suggestions:
+        lines.extend([
+            "## Suggested Fixes",
+            "",
+        ])
+        for i, s in enumerate(suggestions, 1):
+            lines.extend([
+                f"### Fix {i}: {s.get('file', 'unknown')}",
+                "",
+                f"**Rationale:** {s.get('rationale', '')}",
+                "",
+                "```diff",
+                s.get('diff', ''),
+                "```",
+                "",
+            ])
+
+    lines.extend([
+        "---",
+        "",
+        "*Report generated by OpsPilot*",
+    ])
+
+    return "\n".join(lines)
+
+
+def generate_text_report(result: dict) -> str:
+    """Generate a plain text report."""
+    lines = [
+        "=" * 60,
+        "OPSPILOT ANALYSIS REPORT",
+        "=" * 60,
+        "",
+        f"Generated: {result.get('timestamp', 'N/A')}",
+        f"Project: {result.get('project', 'N/A')}",
+        "",
+        "-" * 60,
+        "DIAGNOSIS",
+        "-" * 60,
+        "",
+        f"Hypothesis: {result.get('hypothesis', 'No hypothesis generated')}",
+        f"Confidence: {result.get('confidence', 0.0)}",
+        "",
+    ]
+
+    verdict = result.get("verdict")
+    if verdict:
+        lines.extend([
+            "Verification:",
+            f"  Supported: {verdict.get('supported', False)}",
+            f"  Confidence: {verdict.get('confidence', 0.0)}",
+            f"  Reason: {verdict.get('reason', 'N/A')}",
+            "",
+        ])
+
+    evidence = result.get("evidence", {})
+    if evidence:
+        lines.extend([
+            "-" * 60,
+            "EVIDENCE",
+            "-" * 60,
+            "",
+        ])
+
+        if evidence.get("severity"):
+            lines.append(f"Severity: {evidence['severity']}")
+
+        if evidence.get("build_errors"):
+            build = evidence["build_errors"]
+            lines.extend([
+                "",
+                "Build Errors:",
+                f"  Error Count: {build.get('error_count', 0)}",
+                f"  Error Types: {', '.join(build.get('error_types', []))}",
+                f"  Files: {', '.join(build.get('files_affected', []))}",
+            ])
+
+    lines.extend([
+        "",
+        "=" * 60,
+        "END OF REPORT",
+        "=" * 60,
+    ])
+
+    return "\n".join(lines)
 
 
 @app.command()
@@ -137,9 +317,27 @@ def analyze(
         "--since-hours",
         help="Hours to look back for deployment analysis (default: 24)"
     ),
+    output_file: str = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Save analysis report to file (supports .json, .md, .txt)"
+    ),
+    min_confidence: float = typer.Option(
+        None,
+        "--min-confidence",
+        help=f"Override minimum confidence threshold (default: {CONFIDENCE_THRESHOLD})"
+    ),
 ):
     """
     Analyze the current project for runtime issues.
+
+    Examples:
+        opspilot analyze                          # Quick analysis
+        opspilot analyze --mode deep              # Deep analysis
+        opspilot analyze --error "error text"     # Analyze specific error
+        opspilot analyze --output report.json     # Save report to file
+        ng serve 2>&1 | opspilot analyze --stdin  # Pipe build errors
     """
     if mode not in {"quick", "deep", "explain"}:
         raise typer.BadParameter("Mode must be quick, deep, or explain")
@@ -179,7 +377,7 @@ def analyze(
                 "[magenta]Similar issues detected from past runs:[/magenta]")
             for p in past[-2:]:
                 console.print(
-                    f"- {p['hypothesis']} (confidence {p['confidence']})")
+                    f"- {p.get('hypothesis', 'Unknown')} (confidence {p.get('confidence', 0.0)})")
 
         state = AgentState(project_root=project_root)
 
@@ -242,7 +440,7 @@ def analyze(
                     shell=True,
                     capture_output=True,
                     text=True,
-                    timeout=120,
+                    timeout=BUILD_CMD_TIMEOUT,
                     cwd=project_root
                 )
                 # Capture both stdout and stderr
@@ -253,7 +451,7 @@ def analyze(
                 else:
                     console.print("[green]Build command completed[/green]")
             except subprocess.TimeoutExpired:
-                console.print("[red]Build command timed out after 120s[/red]")
+                console.print(f"[red]Build command timed out after {BUILD_CMD_TIMEOUT}s[/red]")
             except Exception as e:
                 console.print(f"[red]Failed to run build command: {e}[/red]")
 
@@ -284,11 +482,13 @@ def analyze(
             f"• Dependencies detected: {len(state.context['dependencies'])}")
 
         console.print("[cyan]Planner Agent reasoning...[/cyan]")
-        console.print("[debug] entering planner")
+        if debug:
+            console.print("[dim][debug] entering planner[/dim]")
 
         with console.status("[cyan]Analyzing project context with LLM...[/cyan]", spinner="dots"):
             plan_result = plan(state.context)
-        console.print("[debug] planner done")
+        if debug:
+            console.print("[dim][debug] planner done[/dim]")
 
         state.hypothesis = plan_result.get("hypothesis")
         state.confidence = plan_result.get("confidence")
@@ -300,12 +500,14 @@ def analyze(
         console.print("[bold yellow]Hypothesis:[/bold yellow]", state.hypothesis)
         console.print("[bold yellow]Confidence:[/bold yellow]", state.confidence)
 
-        console.print("[debug] collecting evidence")
+        if debug:
+            console.print("[dim][debug] collecting evidence[/dim]")
 
         # Use centralized evidence collection with pattern analysis
         evidence = collect_evidence(state.context)
 
-        console.print("[debug] evidence done")
+        if debug:
+            console.print("[dim][debug] evidence done[/dim]")
 
         # Deployment correlation analysis
         deployment_info = None
@@ -326,11 +528,11 @@ def analyze(
 
                     if correlation.get("correlation") == "strong":
                         console.print("\n[bold red]DEPLOYMENT CORRELATION DETECTED![/bold red]")
-                        console.print(f"[yellow]{correlation.get('reason')}[/yellow]")
+                        console.print(f"[yellow]{correlation.get('reason', '')}[/yellow]")
                         console.print("\n[bold yellow]Suspicious Commits:[/bold yellow]")
                         for commit in correlation.get("suspicious_commits", [])[:3]:
-                            console.print(f"  [{commit['hash']}] {commit['message']}")
-                            console.print(f"    Time diff: {commit['time_diff_hours']}h before error")
+                            console.print(f"  [{commit.get('hash', 'unknown')}] {commit.get('message', '')}")
+                            console.print(f"    Time diff: {commit.get('time_diff_hours', '?')}h before error")
             else:
                 console.print("[green]No recent deployments detected[/green]")
 
@@ -359,24 +561,28 @@ def analyze(
 
         verdict = None
         if state.hypothesis and evidence:
-            console.print("[debug] verifying")
+            if debug:
+                console.print("[dim][debug] verifying[/dim]")
             console.print("[cyan]Verifying hypothesis...[/cyan]")
             verdict = verify(state.hypothesis, evidence)
-            console.print("[debug] verification done")
+            if debug:
+                console.print("[dim][debug] verification done[/dim]")
 
             console.print("[bold yellow]Supported:[/bold yellow]",
-                          verdict["supported"])
+                          verdict.get("supported", False))
             console.print("[bold yellow]Confidence:[/bold yellow]",
-                          verdict["confidence"])
-            console.print("[bold yellow]Reason:[/bold yellow]", verdict["reason"])
+                          verdict.get("confidence", 0.0))
+            console.print("[bold yellow]Reason:[/bold yellow]", verdict.get("reason", "N/A"))
         else:
             console.print(
                 "[yellow]Not enough evidence to verify hypothesis[/yellow]")
 
-        CONFIDENCE_THRESHOLD = 0.6
+        # Use overridden confidence or default
+        threshold = min_confidence if min_confidence is not None else CONFIDENCE_THRESHOLD
 
-        if verdict and verdict.get("confidence", 0) >= CONFIDENCE_THRESHOLD and state.hypothesis:
-            console.print("[debug] suggesting fixes")
+        if verdict and verdict.get("confidence", 0) >= threshold and state.hypothesis:
+            if debug:
+                console.print("[dim][debug] suggesting fixes[/dim]")
             console.print(
                 "[cyan]Generating safe fix suggestions (dry-run)...[/cyan]")
 
@@ -393,9 +599,9 @@ def analyze(
 
             if suggestions:
                 for s in suggestions:
-                    console.print(f"\n[bold]File:[/bold] {s['file']}")
-                    console.print(f"[dim]{s['rationale']}[/dim]")
-                    console.print(s["diff"])
+                    console.print(f"\n[bold]File:[/bold] {s.get('file', 'unknown')}")
+                    console.print(f"[dim]{s.get('rationale', '')}[/dim]")
+                    console.print(s.get("diff", ""))
 
                 # Generate and display remediation plan
                 console.print("\n[bold cyan]Generating Remediation Plan...[/bold cyan]")
@@ -408,7 +614,8 @@ def analyze(
                 console.print(formatted_plan)
             else:
                 console.print("[yellow]No safe suggestions generated.[/yellow]")
-            console.print("[debug] fixer done")
+            if debug:
+                console.print("[dim][debug] fixer done[/dim]")
         else:
             console.print(
                 "[yellow]Confidence too low — not generating fixes.[/yellow]")
@@ -425,21 +632,35 @@ def analyze(
         console.print(f"• Evidence signals: {list(state.evidence.keys())}")
         console.print("• Suggested fixes: DRY-RUN ONLY")
 
+        # Build complete result
         result = {
             "project": project_root,
             "hypothesis": state.hypothesis,
             "confidence": state.confidence,
             "evidence": state.evidence,
             "suggestions": state.suggestions,
+            "verdict": {
+                "supported": verdict.get("supported") if verdict else False,
+                "confidence": verdict.get("confidence") if verdict else 0.0,
+                "reason": verdict.get("reason") if verdict else None,
+            } if verdict else None,
+            "timestamp": datetime.now().isoformat(),
         }
 
+        # Save to output file if specified
+        if output_file:
+            save_report(output_file, result, console)
+
         if output_json:
-            print(json.dumps(result, indent=2))
+            print(json.dumps(result, indent=2, default=str))
             return
 
-        if not state.hypothesis or state.confidence < 0.6:
+        # Use overridden confidence or default
+        threshold = min_confidence if min_confidence is not None else CONFIDENCE_THRESHOLD
+
+        if not state.hypothesis or (state.confidence or 0) < threshold:
             console.print(
-                "[yellow]No confident diagnosis could be made. Evidence insufficient.[/yellow]"
+                f"[yellow]No confident diagnosis could be made. Evidence insufficient (threshold: {threshold}).[/yellow]"
             )
             return
 
