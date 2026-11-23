@@ -109,16 +109,26 @@ def render_terminal(
             for step in diagnosis.next_steps:
                 console.print(Text(f"  - {step}"))
 
-    if result.suggestions:
+    # Patches that failed 'git apply --check' are usually invented code; only
+    # show them on request (they remain in --json and saved reports).
+    shown = [s for s in result.suggestions if verbose or s.check != "does_not_apply"]
+    hidden_patches = len(result.suggestions) - len(shown)
+    if shown:
         console.print()
         console.print("[bold]Dry-run patch suggestions[/bold] [dim](not applied)[/dim]")
-        for s in result.suggestions:
+        for s in shown:
             console.print(Text(f"  {s.file}", style="bold"))
             if s.rationale:
                 console.print(Text(f"  {s.rationale}", style="dim"))
             style = "green" if s.check == "applies" else "yellow"
             console.print(Text(f"  {_CHECK_LABEL[s.check]}", style=style))
             console.print(Text(s.diff.rstrip()))
+    if hidden_patches:
+        console.print()
+        console.print(
+            f"[dim]{hidden_patches} proposed patch(es) did not apply to your files "
+            "and are hidden (see --verbose, --json or -o report.md).[/dim]"
+        )
 
     for warning in result.warnings:
         console.print(f"[yellow]Note:[/yellow] {escape(warning)}")
