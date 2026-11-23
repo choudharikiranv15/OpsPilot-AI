@@ -1,7 +1,12 @@
 """Centralized constants and configuration values for OpsPilot."""
 
-# Version
-VERSION = "0.1.6"
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+# Version (single source of truth: [project].version in pyproject.toml)
+try:
+    VERSION = _pkg_version("opspilot-ai")
+except PackageNotFoundError:  # running from a source tree without installation
+    VERSION = "0.0.0+unknown"
 
 # Timeouts (in seconds)
 LLM_TIMEOUT = 60
