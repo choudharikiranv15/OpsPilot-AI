@@ -344,6 +344,15 @@ def test_doctor_fails_when_nothing_is_ready(project, monkeypatch) -> None:
     assert result.exit_code == 2
 
 
+@pytest.mark.parametrize(
+    "args", [["--help"], ["analyze", "--help"], ["doctor", "--help"]]
+)
+def test_help_renders(args) -> None:
+    result = run(*args)
+    assert result.exit_code == 0, result.output
+    assert "Usage" in result.stdout
+
+
 def test_version() -> None:
     result = run("--version")
     assert result.exit_code == 0
