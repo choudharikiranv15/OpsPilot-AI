@@ -1,7 +1,10 @@
 """Deployment and Git history correlation for incident analysis."""
 
+import logging
 import subprocess
 from datetime import datetime, timedelta
+
+log = logging.getLogger("opspilot.git")
 
 
 def get_recent_commits(
@@ -36,7 +39,7 @@ def get_recent_commits(
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
         if result.returncode != 0:
-            print(f"Git log failed: {result.stderr}")
+            log.debug(f"Git log failed: {result.stderr}")
             return []
 
         commits = []
@@ -58,13 +61,13 @@ def get_recent_commits(
         return commits
 
     except subprocess.TimeoutExpired:
-        print("Git log timed out")
+        log.debug("Git log timed out")
         return []
     except FileNotFoundError:
-        print("Git not found. Install from: https://git-scm.com/")
+        log.debug("Git not found. Install from: https://git-scm.com/")
         return []
     except Exception as e:
-        print(f"Failed to get Git commits: {e}")
+        log.debug(f"Failed to get Git commits: {e}")
         return []
 
 

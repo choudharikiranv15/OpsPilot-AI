@@ -35,7 +35,7 @@ from opspilot.context.deps import read_dependencies
 from opspilot.context.docker import find_docker_files
 from opspilot.context.env import read_env_names
 from opspilot.context.logs import read_logs
-from opspilot.context.production_logs import auto_detect_and_fetch
+from opspilot.context.production_logs import LogSourceError, auto_detect_and_fetch
 from opspilot.context.project import scan_project_tree
 from opspilot.diffs.redis import redis_pooling_diff, redis_timeout_diff
 from opspilot.exceptions import LLMError
@@ -743,6 +743,9 @@ def analyze(
     except KeyboardInterrupt:
         console.print("\n[yellow]Analysis interrupted by user[/yellow]")
         raise typer.Exit(code=130) from None
+    except LogSourceError as e:
+        console.print(f"[red]Log source error:[/red] {e}")
+        raise typer.Exit(code=1) from e
     except LLMError as e:
         console.print(f"[red]LLM error:[/red] {e}")
         raise typer.Exit(code=1) from e
