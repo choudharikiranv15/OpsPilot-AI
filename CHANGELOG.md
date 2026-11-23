@@ -19,6 +19,7 @@ A substantial rework based on an end-to-end audit (`OPSPILOT_AUDIT_REPORT.md`). 
 - `--mode deep` is deprecated (it was always identical to `quick`); `--mode explain` is replaced by `--no-llm`.
 - The incident history file now stores only minimal fields. Older entries are slimmed automatically.
 - Python 3.11+ is required.
+- Minimum dependency versions raised: `rich>=15`, `typer>=0.29.2`.
 
 ### Added
 
@@ -29,6 +30,7 @@ A substantial rework based on an end-to-end audit (`OPSPILOT_AUDIT_REPORT.md`). 
 - `--provider`, `--model`, `--allow-cloud`, `--no-llm`, `--no-fix`, `--no-redact`; `--log-source` is repeatable.
 - Redaction of likely secrets and emails before any text is sent to a model.
 - Anthropic provider support.
+- Patches that fail `git apply --check` are hidden in terminal output unless `--verbose` is given (they remain in `--json` and reports).
 - `python -m opspilot`.
 - Documentation: privacy, configuration, troubleshooting, security policy, contributing guide.
 
@@ -47,6 +49,10 @@ A substantial rework based on an end-to-end audit (`OPSPILOT_AUDIT_REPORT.md`). 
 - Retries no longer apply to permanent errors (e.g. invalid API key), and every run has an overall time budget.
 - Remote log sources are size-capped and their identifiers validated before being passed to `kubectl`/`aws`.
 - Cargo inline-table versions, Gradle Kotlin-DSL dependencies, and files in a repository's first commit are now parsed correctly.
+- Compiler diagnostics (tsc, mypy, go/gcc/clang/rustc-style) are grouped by error code with counts, file and line, plus a summary of totals and the most affected files. Previously only the first 10 errors were kept, without locations. Found by testing on a real TypeScript project with 140 errors, 106 of them in one file.
+- Summary lines that report zero problems (`Failed: 0`, `0 failed`) are no longer treated as errors.
+- The "undefined environment variables" fact no longer cuts names off mid-word.
+- HTTP status codes are counted only in an HTTP context (not ports, line numbers or durations).
 
 ### Removed
 
