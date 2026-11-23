@@ -23,8 +23,16 @@ This is a small regression check, not a benchmark. Twelve cases cannot measure f
 | `llama3.2` (3B), before category fix | 12/12 | 12/12 | 6/12 (50%) | ~8 s |
 | `llama3.2` (3B) | 12/12 | 12/12 | 9/12 (75%) | ~8 s |
 | `llama3` (8B) | 12/12 | 12/12 | 11/12 (92%) | ~18 s |
+| `llama3.2` (3B), "be specific" prompt | 12/12 | 12/12 | 9/12 (75%) | ~8 s |
+| `llama3` (8B), "be specific" prompt | 12/12 | 12/12 | 10/12 (83%)* | ~18 s |
+
+\* The extra miss (`python-syntax-error` classed as `dependency`) did not reproduce: re-running that case 3 times with each prompt gave `code_bug` 6/6. One sampling miss in 12 is within the noise of this small set.
 
 The first row is the baseline that motivated a change: the 3B model copied the `a|b|c` enum syntax from the prompt (e.g. `database|network`) or invented labels. Listing the categories explicitly and normalising the model's answer in code raised accuracy from 50% to 75% with the same model.
+
+## Real-project check (2026-11-23)
+
+The golden set uses short, clean inputs. On a real TypeScript project (`tsc --noEmit`: 140 errors, 106 of them `TS1117` duplicate keys in `src/i18n.ts`), the changes in this round made the facts point straight at the dominant problem: "140 errors in 15 files; by code: TS1117 x106 ...; most affected files: src/i18n.ts (106)". With the "be specific" prompt, `llama3` concluded "TypeScript errors in i18n.ts and related components" (citing F1, F2). `llama3.2` still answered "incompatible dependencies", which is wrong. **For real projects, use at least an 8B model**, and treat the deterministic facts as the most reliable part of the output.
 
 ### Per-case details
 
