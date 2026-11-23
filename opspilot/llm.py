@@ -35,6 +35,7 @@ from opspilot.exceptions import (
     LLMResponseError,
     LLMTimeoutError,
 )
+from opspilot.redact import redact
 from opspilot.settings import CLOUD_PROVIDERS, OpsPilotSettings
 
 log = logging.getLogger("opspilot.llm")
@@ -382,6 +383,7 @@ class LLMRouter:
         self._sleep = sleep
         self.active: ProviderStatus | None = None
         self.request_count = 0
+        self.redaction_count = 0
 
     def statuses(self) -> list[ProviderStatus]:
         return [p.status() for p in self.providers]
@@ -399,7 +401,13 @@ class LLMRouter:
         return "Run 'opspilot doctor' for details."
 
     def complete(self, system: str, user: str) -> str:
-        """Return raw model text from the first permitted provider that answers."""
+        """Return raw model text from the first permitted provider that answers.
+
+        The prompt is redacted (see opspilot.redact) before any provider sees it.
+        """
+        if self.settings.redact:
+            user, count = redact(user)
+            self.redaction_count += count
         attempts: list[str] = []
         for provider in self.providers:
             status = provider.status()
