@@ -20,7 +20,6 @@ from dotenv import load_dotenv
 from opspilot.agents.planner import plan
 from opspilot.state import AgentState
 from opspilot.constants import VERSION, CONFIDENCE_THRESHOLD, BUILD_CMD_TIMEOUT
-from opspilot.logger import setup_logging, get_logger
 from opspilot.config import load_config
 from opspilot.context.project import scan_project_tree
 from opspilot.context.logs import read_logs
