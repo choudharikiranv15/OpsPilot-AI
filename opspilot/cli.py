@@ -378,6 +378,11 @@ def analyze(
         "--allow-cloud",
         help="In auto mode, allow falling back to cloud providers with configured keys",
     ),
+    no_redact: bool = typer.Option(
+        False,
+        "--no-redact",
+        help="Do not mask likely secrets/emails in text sent to the LLM",
+    ),
 ):
     """
     Analyze the current project for runtime issues.
@@ -398,7 +403,10 @@ def analyze(
         router = None
         if mode != "explain":
             settings = get_settings(
-                provider=provider, model=model, allow_cloud=allow_cloud or None
+                provider=provider,
+                model=model,
+                allow_cloud=allow_cloud or None,
+                redact=False if no_redact else None,
             )
             router = LLMRouter(settings, notify=_announce_provider)
             if not router.ready():
