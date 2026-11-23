@@ -235,7 +235,7 @@ def analyze(
         None,
         "--log-source",
         help="Log to analyse instead of auto-discovered *.log files: file path, "
-        "https:// URL, s3://bucket/key, k8s://ns/pod[/container], "
+        "https:// URL, s3://bucket/key, k8s://NAMESPACE/POD (optionally /CONTAINER), "
         "cw://GROUP::STREAM. Repeatable.",
     ),
     deployment_analysis: bool = typer.Option(

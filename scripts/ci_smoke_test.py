@@ -65,6 +65,8 @@ def main() -> None:
 
         run([opspilot, "--version"], env=env)
         run([opspilot, "--help"], env=env)
+        run([opspilot, "analyze", "--help"], env=env)
+        run([opspilot, "doctor", "--help"], env=env)
         run([python, "-m", "opspilot", "--help"], env=env)
         run([opspilot, "analyze", "--no-llm"], cwd=project, env=env)
         result = run([opspilot, "analyze", "--no-llm", "--json"], cwd=project, env=env)
