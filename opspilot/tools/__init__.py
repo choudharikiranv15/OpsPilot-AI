@@ -38,8 +38,9 @@ def parse_build_errors(build_output: str) -> dict:
         )
         error_types.add("angular")
 
-    # Python errors (SyntaxError, ImportError, etc.)
-    py_pattern = r"((?:Syntax|Import|Module|Attribute|Type|Value|Key|Index|Name)Error):\s*(.+?)(?:\n|$)"
+    # Exceptions named like Python/JVM/JS classes: ModuleNotFoundError: ...,
+    # java.lang.NullPointerException: ..., TypeError: ...
+    py_pattern = r"\b((?:[a-z_]\w*\.)*[A-Z]\w*(?:Error|Exception)):\s*(.+?)(?:\n|$)"
     py_matches = re.findall(py_pattern, build_output)
     if py_matches:
         errors.extend(

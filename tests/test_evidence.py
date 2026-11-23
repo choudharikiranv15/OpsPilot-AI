@@ -113,3 +113,25 @@ def test_fixer_excerpt_survives_stale_line_numbers(tmp_path):
     )
     excerpt = _excerpt(tmp_path, "a.py", [fact])
     assert "1 | one" in excerpt and "2 | two" in excerpt
+
+
+def test_exception_classes_are_recognised_in_build_output(tmp_path):
+    output = (
+        "ModuleNotFoundError: No module named 'redis'\n"
+        "java.lang.NullPointerException: user is null\n"
+    )
+    texts = [f.text for f in facts_for(tmp_path, build_output=output)]
+    assert "ModuleNotFoundError: No module named 'redis'" in texts
+    assert "java.lang.NullPointerException: user is null" in texts
+
+
+def test_dependency_hypotheses_may_target_the_manifest(tmp_path):
+    from opspilot.agents.fixer import target_files
+    from opspilot.models import Fact, Hypothesis
+
+    (tmp_path / "requirements.txt").write_text("flask\n", encoding="utf-8")
+    frame = Fact(id="F2", kind="stack_frame", text="x", source="s", location="app.py:2")
+    dep = Hypothesis(cause="redis missing", category="dependency", evidence=["F2"])
+    bug = Hypothesis(cause="typo", category="code_bug", evidence=["F2"])
+    assert target_files([frame], dep, str(tmp_path)) == ["requirements.txt", "app.py"]
+    assert target_files([frame], bug, str(tmp_path)) == ["app.py"]

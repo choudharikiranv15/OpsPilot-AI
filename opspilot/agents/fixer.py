@@ -51,11 +51,36 @@ class _LLMFixes(BaseModel):
     suggestions: list[_LLMSuggestion] = Field(default_factory=list)
 
 
-def target_files(facts: list[Fact], hypothesis: Hypothesis) -> list[str]:
-    """Project files referenced by the facts the hypothesis cites (then any fact)."""
+MANIFESTS = (
+    "requirements.txt",
+    "pyproject.toml",
+    "Pipfile",
+    "package.json",
+    "go.mod",
+    "Cargo.toml",
+    "Gemfile",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+)
+
+
+def target_files(
+    facts: list[Fact], hypothesis: Hypothesis, project_root: str | None = None
+) -> list[str]:
+    """
+    Files a patch may touch: project files referenced by the facts the
+    hypothesis cites (then by any fact), plus the dependency manifest when the
+    hypothesis is about dependencies or the build.
+    """
     cited = [f for f in facts if f.id in hypothesis.evidence]
     ordered = cited + [f for f in facts if f not in cited]
     files: list[str] = []
+    if project_root and hypothesis.category in ("dependency", "build"):
+        root = Path(project_root)
+        manifest = next((m for m in MANIFESTS if (root / m).is_file()), None)
+        if manifest:
+            files.append(manifest)
     for fact in ordered:
         if fact.location:
             path = fact.location.rsplit(":", 1)[0]
@@ -73,7 +98,7 @@ def suggest(
     Returns no suggestions (and makes no LLM call) when the evidence does not
     point at any project file.
     """
-    files = target_files(facts, hypothesis)
+    files = target_files(facts, hypothesis, project_root)
     if not files:
         return [], 0
     root = Path(project_root).resolve()
