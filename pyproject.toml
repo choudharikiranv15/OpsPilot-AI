@@ -117,6 +117,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["SIM117"]  # nested patch() context managers read better in tests
+"opspilot/cli.py" = ["B008"]  # typer.Option(...) defaults are the Typer idiom
 
 [tool.ruff.format]
 quote-style = "double"

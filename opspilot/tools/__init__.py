@@ -2,9 +2,6 @@
 
 import re
 
-from opspilot.tools.dep_tools import has_dependency
-from opspilot.tools.env_tools import find_missing_env
-from opspilot.tools.log_tools import analyze_log_errors
 from opspilot.tools.pattern_analysis import (
     build_error_timeline,
     identify_error_patterns,
@@ -86,56 +83,29 @@ def parse_build_errors(build_output: str) -> dict:
 
 def collect_evidence(context: dict) -> dict:
     """
-    Collect evidence from project context with advanced pattern analysis.
+    Heuristic error statistics for the build output and logs in ``context``.
 
-    Args:
-        context: Project context dictionary
-
-    Returns:
-        Dictionary containing collected evidence with error patterns, severity, and timeline
+    Used for the severity estimate and the "seen before" fingerprint. The
+    diagnosis itself is based on numbered facts (see opspilot.evidence).
     """
-    evidence = {}
-
+    evidence: dict = {}
     logs = context.get("logs")
-    env = context.get("env", [])
-    deps = context.get("dependencies", [])
-    build_errors = context.get("build_errors")
+    build_output = context.get("build_errors")
 
-    # Parse build errors (highest priority)
-    if build_errors:
-        parsed_build = parse_build_errors(build_errors)
+    if build_output:
+        parsed_build = parse_build_errors(build_output)
         if parsed_build.get("errors"):
             evidence["build_errors"] = parsed_build
-            evidence["severity"] = "P1"  # Build failures are high priority
+            evidence["severity"] = "P1"  # a failing build blocks delivery
 
-    # Advanced pattern analysis for logs
     if logs:
         error_patterns = identify_error_patterns(logs)
         if error_patterns:
             evidence["error_patterns"] = error_patterns
-            # Don't override severity if build errors already set it
-            if "severity" not in evidence:
-                evidence["severity"] = error_patterns.get("severity", "P3")
+            evidence.setdefault("severity", error_patterns.get("severity", "P3"))
             evidence["error_count"] = error_patterns.get("error_count", 0)
-
-        # Timeline analysis
         timeline = build_error_timeline(logs)
         if timeline:
             evidence["timeline"] = timeline
-
-    # Basic log error counting (keep for backward compatibility)
-    log_errors = analyze_log_errors(logs)
-    if log_errors:
-        evidence["log_errors"] = log_errors
-
-    # Dependency detection
-    if has_dependency(deps, "redis"):
-        evidence["uses_redis"] = True
-
-    # Environment variable validation (only if no build errors)
-    if not build_errors:
-        missing_env = find_missing_env(["REDIS_URL"], env)
-        if missing_env:
-            evidence["missing_env"] = missing_env
 
     return evidence

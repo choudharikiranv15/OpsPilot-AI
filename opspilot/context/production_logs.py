@@ -18,15 +18,13 @@ from __future__ import annotations
 
 import logging
 import re
-import subprocess
-import threading
-from collections import deque
 from pathlib import Path
 
 import requests
 
 from opspilot.context.logs import read_tail
 from opspilot.exceptions import OpsPilotError
+from opspilot.proc import run_bounded, tail_bytes
 
 log = logging.getLogger("opspilot.logs")
 
@@ -159,59 +157,21 @@ def auto_detect_and_fetch(source: str) -> str:
 
 
 def _tail_of_stream(chunks) -> str:
-    kept: deque[bytes] = deque()
-    size = 0
-    for chunk in chunks:
-        if not chunk:
-            continue
-        kept.append(chunk)
-        size += len(chunk)
-        while size - len(kept[0]) >= MAX_FETCH_BYTES:
-            size -= len(kept.popleft())
-    data = b"".join(kept)[-MAX_FETCH_BYTES:]
-    return data.decode("utf-8", errors="replace")
+    return tail_bytes(chunks, MAX_FETCH_BYTES).decode("utf-8", errors="replace")
 
 
 def _run_cli(cmd: list[str], tool: str, install_url: str) -> str:
-    """Run an external CLI; stream stdout keeping only the last MAX_FETCH_BYTES."""
+    """Run an external CLI; keep only the last MAX_FETCH_BYTES of its output."""
     try:
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = run_bounded(cmd, timeout=CLI_TIMEOUT, max_bytes=MAX_FETCH_BYTES)
     except FileNotFoundError:
         raise LogSourceError(
             f"{tool} not found", f"install it from {install_url}"
         ) from None
-
-    result: dict[str, object] = {}
-    stderr_head: list[bytes] = []
-
-    def pump_stdout() -> None:
-        result["stdout"] = _tail_of_stream(
-            iter(lambda: process.stdout.read(64 * 1024), b"")
-        )
-
-    def pump_stderr() -> None:
-        for chunk in iter(lambda: process.stderr.read(64 * 1024), b""):
-            if sum(map(len, stderr_head)) < 64 * 1024:
-                stderr_head.append(chunk)
-
-    readers = [
-        threading.Thread(target=pump_stdout, daemon=True),
-        threading.Thread(target=pump_stderr, daemon=True),
-    ]
-    for reader in readers:
-        reader.start()
-    try:
-        process.wait(timeout=CLI_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait()
-        raise LogSourceError(f"{tool} timed out after {CLI_TIMEOUT}s") from None
-    finally:
-        for reader in readers:
-            reader.join(timeout=5)
-    if process.returncode != 0:
-        message = b"".join(stderr_head).decode("utf-8", errors="replace").strip()
+    if result.timed_out:
+        raise LogSourceError(f"{tool} timed out after {CLI_TIMEOUT}s")
+    if result.returncode != 0:
         raise LogSourceError(
-            f"{tool} failed (exit {process.returncode})", message[:500]
+            f"{tool} failed (exit {result.returncode})", result.stderr.strip()[:500]
         )
-    return str(result.get("stdout", ""))
+    return result.stdout
