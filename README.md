@@ -1,476 +1,184 @@
-# OpsPilot-AI 🤖
+# OpsPilot
 
-[![PyPI version](https://badge.fury.io/py/opspilot-ai.svg)](https://pypi.org/project/opspilot-ai/)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI](https://img.shields.io/pypi/v/opspilot-ai.svg)](https://pypi.org/project/opspilot-ai/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/choudharikiranv15/OpsPilot-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/choudharikiranv15/OpsPilot-AI/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> An intelligent agentic AI CLI tool for automated incident analysis and error resolution
+**OpsPilot explains why your build or app is failing, using evidence from your own logs, and by default it never sends your code or logs off your machine.**
 
-OpsPilot-AI is your AI-powered Site Reliability Engineer that analyzes your projects, identifies runtime issues, and suggests safe fixes—all through a simple command-line interface.
+You point it at a failure: build output, a stack trace, or log files. OpsPilot:
 
----
+1. **Extracts facts deterministically** (no AI): error lines, build errors, stack frames in your code, environment variables your code uses but your `.env` doesn't define, and optionally recent commits. Each fact gets an ID (`F1`, `F2`, ...).
+2. **Asks a local LLM** (via [Ollama](https://ollama.com)) for up to three root-cause hypotheses, each of which **must cite the facts it relies on**. Citations are checked; hypotheses that cite nothing are marked as guesses.
+3. **Optionally proposes dry-run patches** for files that the evidence points to, and checks each patch with `git apply --check`. **OpsPilot never modifies your files.**
 
-## 🎯 What is OpsPilot-AI?
-
-OpsPilot-AI uses a **multi-agent AI architecture** to understand your project's context, form hypotheses about runtime issues, and provide evidence-based fix recommendations. Think of it as having an experienced SRE on your team, available 24/7.
-
-### Key Capabilities
-
-- **🔍 Intelligent Context Gathering** - Automatically analyzes logs, environment variables, Docker configs, dependencies, and project structure
-- **🧠 Multi-Agent Architecture** - 4 specialized agents (Planner, Verifier, Fixer, Remediation) working collaboratively
-- **🌐 Multi-Provider LLM Support** - Automatic fallback across Ollama, OpenRouter, Gemini, and HuggingFace
-- **✅ Evidence-Based Verification** - Validates hypotheses with collected evidence and confidence scoring
-- **🛠️ Safe Fix Suggestions** - Provides dry-run suggestions with detailed rationale (never auto-applies changes)
-- **💾 Redis-Based Memory** - Auto-expiring incident history with user isolation and sub-second lookups
-- **🚨 Severity Classification** - Automatic P0/P1/P2/P3 incident prioritization
-- **☁️ Production Log Fetching** - S3, Kubernetes, CloudWatch, and HTTP endpoint support
-- **📊 Deployment Correlation** - Links incidents to recent Git deployments for faster root cause analysis
+> **Status: alpha (0.2.0 in development).** The `main` branch is a substantial rework of the 0.1.x releases on PyPI. See [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-## 🚀 Quick Start (2 Minutes Setup)
+## Install
 
-### Step 1: Install OpsPilot-AI
-
-```bash
-pip install opspilot-ai
-```
-
-### Step 2: Setup LLM (Choose ONE Option)
-
-OpsPilot-AI needs an LLM to analyze your code. Choose **one** of these options:
-
----
-
-#### Option A: Ollama (Recommended - Free & Private)
-
-Ollama runs locally on your machine. Your code never leaves your computer.
-
-**For macOS/Linux:**
-```bash
-# Install Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# Pull the AI model (one-time download, ~4GB)
-ollama pull llama3
-
-# Verify it's running
-ollama list
-```
-
-**For Windows:**
-1. Download Ollama from [ollama.ai/download](https://ollama.ai/download)
-2. Install and run the application
-3. Open terminal and run:
-```bash
-ollama pull llama3
-```
-
----
-
-#### Option B: Cloud API (No Local Install Required)
-
-Use cloud-based LLMs with free tiers. Set **one** of these environment variables:
-
-**Google Gemini (Recommended Cloud Option):**
-```bash
-# Get free API key: https://makersuite.google.com/app/apikey
-export GOOGLE_API_KEY="your-api-key-here"
-```
-
-**OpenRouter (100+ Models Available):**
-```bash
-# Get free API key: https://openrouter.ai/keys
-export OPENROUTER_API_KEY="your-api-key-here"
-```
-
-**HuggingFace:**
-```bash
-# Get free token: https://huggingface.co/settings/tokens
-export HUGGINGFACE_API_KEY="your-api-key-here"
-```
-
-**Windows Users (set environment variable):**
-```cmd
-set GOOGLE_API_KEY=your-api-key-here
-```
-
----
-
-### Step 3: Analyze Your Project
+OpsPilot needs Python 3.11+ and is best installed with [pipx](https://pipx.pypa.io), which keeps it isolated from your projects:
 
 ```bash
-# Navigate to your project
-cd /path/to/your/project
+pipx install opspilot-ai
+```
 
-# Run analysis
+Until 0.2.0 is published, install the development version from GitHub:
+
+```bash
+pipx install git+https://github.com/choudharikiranv15/OpsPilot-AI.git
+```
+
+## Set up a local model
+
+1. Install Ollama from <https://ollama.com/download> and make sure it is running.
+2. Pull a model. The default is `llama3.2` (about 2 GB):
+
+   ```bash
+   ollama pull llama3.2
+   ```
+
+3. Check the setup:
+
+   ```bash
+   opspilot doctor
+   ```
+
+Small models such as `llama3.2` (3B) work, but their diagnoses are noticeably weaker. If your hardware allows, use a larger instruction-tuned model with `--model` or `OPSPILOT_OLLAMA_MODEL`, for example `--model qwen2.5:7b`. OpsPilot never downloads models for you; if the configured model is missing it tells you the `ollama pull` command.
+
+Prefer a hosted model? See [Cloud providers](#cloud-providers-opt-in).
+
+## Use it
+
+Run OpsPilot from your project directory and give it the failure:
+
+```bash
+# Pipe a failing build or test run
+npm run build 2>&1 | opspilot analyze --stdin
+pytest -x 2>&1 | opspilot analyze --stdin
+
+# Or let OpsPilot run the command (no shell; output is captured)
+opspilot analyze --build-cmd "npm run build"
+
+# Paste an error
+opspilot analyze --error "ModuleNotFoundError: No module named 'redis'"
+
+# Analyse logs (by default: *.log files in ./logs, ./log, ./var/log and the project root)
 opspilot analyze
-```
-
-That's it! OpsPilot-AI will analyze your project and provide diagnosis.
-
----
-
-## 📖 Usage Examples
-
-### Basic Commands
-
-```bash
-# Quick analysis (fastest)
-opspilot analyze --mode quick
-
-# Deep analysis (thorough, recommended)
-opspilot analyze --mode deep
-
-# Verbose output (see what's happening)
-opspilot analyze --verbose
-```
-
-### Advanced Commands
-
-```bash
-# Analyze with production logs from S3
-opspilot analyze --log-source s3://my-bucket/logs/app.log
-
-# Analyze with deployment correlation (links errors to git commits)
-opspilot analyze --deployment-analysis --since-hours 48
-
-# JSON output for CI/CD automation
-opspilot analyze --json --mode quick
-
-# Analyze specific log file
 opspilot analyze --log-source /var/log/myapp/error.log
 
-# Full debugging output
-opspilot analyze --verbose --debug
+# Include recent git commits as evidence
+opspilot analyze --deployment-analysis --since-hours 24
+
+# Facts only: no LLM, nothing leaves your machine
+opspilot analyze --no-llm
+
+# Save a report, or get JSON for scripts and CI
+opspilot analyze -o report.md
+opspilot analyze --json > result.json
 ```
 
-### Analysis Modes
+`--log-source` also accepts `https://` URLs, `s3://bucket/key` (needs the AWS CLI), `k8s://NAMESPACE/POD` or `k8s://NAMESPACE/POD/CONTAINER` (needs `kubectl`), and `cw://LOG_GROUP::LOG_STREAM` (needs the AWS CLI). All sources are capped at the most recent 5 MB.
 
-| Mode | Speed | LLM Calls | Use Case |
-|------|-------|-----------|----------|
-| `quick` | Fast | 1 | Quick check, CI/CD pipelines |
-| `deep` | Thorough | Up to 4 | Detailed incident analysis |
-| `explain` | Instant | 0 | Context gathering only (no LLM) |
+### Example output
 
-### Installation Options
+From the sample project in [`tests/fixtures/sample_project`](tests/fixtures/sample_project), using the default `llama3.2` model:
+
+```text
+Observed facts (extracted directly, no AI)
+  F1 [log_error] logs/app.log: ERROR redis.exceptions.TimeoutError: Timeout reading from socket
+  F2 [log_error] logs/app.log: ERROR GET /api/orders failed with status 503
+  F5 [log_error] logs/app.log: ERROR psycopg2.OperationalError: connection refused to db:5432
+  F7 [stack_frame] logs: Stack frame at app/main.py:42
+  F8 [config] source code scan: Environment variables referenced in code but not defined
+     in the project's .env files (they may still be set at runtime): DATABASE_URL (app/main.py)
+
+Diagnosis (AI-generated)
+Application is experiencing intermittent connection issues with Redis and PostgreSQL
+  1. Resource exhaustion due to unhandled exceptions in the application
+     (resource_exhaustion, model confidence 0.80)
+     cites F1, F4
+
+Dry-run patch suggestions (not applied)
+  app/main.py
+  patch does NOT apply to the current file; treat as a sketch
+
+LLM: ollama (llama3.2, local) · 3 request(s) · 0 value(s) redacted · 36.2s
+```
+
+The summary is reasonable but the top hypothesis is weak, which is typical of a 3B model. The facts it cites are real, so you can check it quickly. More examples: [EXAMPLES.md](EXAMPLES.md).
+
+### Reading the results
+
+| Section | Produced by | How much to trust it |
+|---|---|---|
+| **Observed facts** | Deterministic parsing | Exactly what is in your inputs |
+| **Diagnosis** | The LLM | A hypothesis. Check the cited facts. "Cites no extracted fact" means it is a guess. |
+| **Suggested next checks** | The LLM | Read-only checks to confirm the cause. Review before running. |
+| **Dry-run patches** | The LLM, then checked | Only for files the evidence points to. "applies cleanly" means `git apply --check` passed, not that the fix is correct. |
+
+"Model confidence" is the model's own estimate, not a measured probability.
+
+## Privacy
+
+- **Local by default.** With no configuration, OpsPilot only talks to Ollama on `localhost`.
+- **`.env` values are never read into OpsPilot's output or prompts**, only variable names. Docker files are reported by name only.
+- **Redaction.** Likely secrets (API keys, tokens, passwords in `key=value` or URLs, private keys, emails) are masked in everything sent to a model, including the local one. Disable with `--no-redact`.
+- **History.** OpsPilot keeps a small local history (`~/.opspilot_memory.json`: project path, time, hypothesis and an error fingerprint) to show "seen before" hints. Delete the file to clear it.
+
+Details: [docs/privacy.md](docs/privacy.md).
+
+## Cloud providers (opt in)
+
+Gemini, Anthropic and OpenRouter are supported, but your logs are only sent to them when you opt in:
 
 ```bash
-# Basic (just the CLI)
-pip install opspilot-ai
-
-# With Redis support (remembers past incidents)
-pip install "opspilot-ai[redis]"
-
-# With AWS support (S3, CloudWatch logs)
-pip install "opspilot-ai[aws]"
-
-# With Kubernetes support (K8s pod logs)
-pip install "opspilot-ai[k8s]"
-
-# Everything included
-pip install "opspilot-ai[all]"
+export GOOGLE_API_KEY=...              # or ANTHROPIC_API_KEY / OPENROUTER_API_KEY
+opspilot analyze --provider gemini     # explicitly use this provider
+opspilot analyze --allow-cloud         # local first, cloud only if Ollama fails
 ```
 
----
+OpsPilot prints which provider and model it is about to use before it sends anything. OpenRouter also needs a model ID (`OPSPILOT_OPENROUTER_MODEL`). See [docs/configuration.md](docs/configuration.md).
 
-## 🔧 Troubleshooting
+## Commands
 
-### "No LLM providers available"
+| Command | Purpose |
+|---|---|
+| `opspilot analyze` | Diagnose the failure in the current directory (`opspilot analyze --help` for all options) |
+| `opspilot doctor` | Show configuration and whether each provider is ready |
+| `opspilot --version` | Print the version |
 
-You need to set up an LLM. Choose one:
+Exit codes: `0` success, `1` error (bad log source, LLM failure, ...), `2` usage or setup problem (no ready provider, invalid options).
+
+## Configuration
+
+Settings come from command-line flags, `OPSPILOT_*` environment variables, or `~/.config/opspilot/config.env` (see [config.env.example](config.env.example)). OpsPilot does **not** read the `.env` file of the project you are analysing for its own settings. Full list: [docs/configuration.md](docs/configuration.md).
+
+## Limitations
+
+- Diagnosis quality depends heavily on the model; small local models make mistakes.
+- Log parsing is heuristic and tuned for common formats (Python, Node/TypeScript, JVM, Go, Rust, nginx-style access logs).
+- Remote log sources (S3, Kubernetes, CloudWatch) are lightly tested against real services.
+- One project directory per run; there is no daemon, dashboard, or alerting integration.
+
+## Troubleshooting
+
+See [docs/troubleshooting.md](docs/troubleshooting.md). Start with `opspilot doctor`.
+
+## Development
 
 ```bash
-# Option 1: Install Ollama (recommended)
-curl -fsSL https://ollama.ai/install.sh | sh
-ollama pull llama3
-
-# Option 2: Set a cloud API key
-export GOOGLE_API_KEY="your-key"
-```
-
-### "Ollama connection refused"
-
-Make sure Ollama is running:
-```bash
-# Start Ollama service
-ollama serve
-
-# In another terminal, verify it works
-ollama list
-```
-
-### "No logs found"
-
-OpsPilot-AI looks for logs in these locations:
-- `./logs/` directory
-- `*.log` files in project root
-- Files specified with `--log-source`
-
-```bash
-# Specify log file directly
-opspilot analyze --log-source ./my-app/error.log
-```
-
-### "Context collected: 0 env vars"
-
-Make sure you have a `.env` file in your project directory, or environment variables set.
-
----
-
-**Example Output:**
-
-```
-Similar issues detected from past runs:
-- Redis connection issue caused by network or Redis server downtime (confidence 0.8)
-
-OpsPilot-AI initialized
-Project detected: /your/project
-
-Planner Agent reasoning...
-Hypothesis: Redis connection issue
-Confidence: 0.9
-
-Evidence collected:
-{'log_errors': {'ERROR': 1, 'Timeout': 1}, 'uses_redis': True}
-
-Verifying hypothesis...
-Supported: True
-Confidence: 0.8
-Reason: The presence of Redis connection-related errors (Timeout) and the system's use of Redis support the hypothesis.
-
-Generating safe fix suggestions (dry-run)...
-
-File: .env
-Increase Redis timeout to reduce transient timeout errors under load.
---- a/.env
-+++ b/.env
-@@
--REDIS_TIMEOUT=1
-+REDIS_TIMEOUT=5
-
-File: app/config/redis.py
-Enable connection pooling and reasonable timeouts to improve reliability.
---- a/app/config/redis.py
-+++ b/app/config/redis.py
-@@
--redis.Redis(host=host, port=port)
-+redis.Redis(host=host, port=port, socket_timeout=5, max_connections=20)
-```
-
----
-
-## 🏗️ Architecture
-
-OpsPilot-AI implements a **multi-agent agentic architecture** with four specialized agents:
-
-1. **Planner Agent** - Analyzes project context and forms hypotheses about root causes
-2. **Verifier Agent** - Collects evidence and validates hypotheses with confidence scoring
-3. **Fixer Agent** - Generates safe, actionable fix suggestions
-4. **Remediation Agent** - Creates 3-tier action plans (immediate, short-term, long-term)
-
-**Multi-Provider LLM System:**
-- Automatic fallback routing across 4 providers
-- Connection pooling for high availability
-- Provider health metrics and monitoring
-
-**Redis-Based Memory:**
-- User-isolated incident storage with SHA-256 project hashing
-- Automatic TTL expiration (configurable, default 30 days)
-- Sub-second similarity search with sorted sets
-- Severity-based indexing (P0/P1/P2/P3)
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design documentation.
-
----
-
-## 🧩 How It Works
-
-### 1. Context Collection
-OpsPilot-AI gathers information from multiple sources:
-- **Logs**: Recent error logs and exceptions
-- **Environment**: Environment variables and configurations
-- **Dependencies**: Project dependencies (requirements.txt, package.json)
-- **Docker**: Dockerfile and docker-compose configurations
-- **Structure**: Project file tree and organization
-
-### 2. Hypothesis Generation
-The Planner agent uses LLM reasoning to:
-- Analyze collected context
-- Identify patterns and anomalies
-- Form hypotheses about root causes
-- Assign confidence scores (0.0 - 1.0)
-
-### 3. Evidence-Based Verification
-The Verifier agent:
-- Collects concrete evidence (log errors, missing configs, etc.)
-- Cross-references with the hypothesis
-- Updates confidence based on evidence strength
-- Provides reasoning for the verdict
-
-### 4. Safe Fix Suggestions
-If confidence ≥ 0.6, the Fixer agent:
-- Generates actionable fix suggestions as diffs
-- Explains the rationale for each fix
-- Provides domain-specific solutions (e.g., Redis timeout fixes)
-- **Never auto-applies changes** (dry-run only for safety)
-
-### 5. Learning from History
-OpsPilot-AI maintains Redis-based memory of past issues:
-- Stores hypotheses, confidence scores, and evidence with automatic TTL
-- User-isolated storage using project path hashing
-- Detects similar issues in future runs with sub-second lookups
-- Automatic expiration prevents stale incident data
-- Falls back to file-based storage if Redis unavailable
-
----
-
-## 🎓 Technology Stack
-
-- **LLM Integration**: Multi-provider system (Ollama, OpenRouter, Gemini, HuggingFace) with automatic fallback
-- **Memory Layer**: Redis (with file-based fallback) for incident history and similarity detection
-- **CLI Framework**: Typer + Rich (professional terminal output)
-- **Cloud Integration**: AWS (S3, CloudWatch), Kubernetes, HTTP endpoints
-- **AI Pattern**: Multi-agent agentic architecture with 4 specialized agents
-- **Reasoning**: Evidence-based decision making with P0/P1/P2/P3 severity classification
-- **Prompt Engineering**: Robust JSON extraction with retry logic and safe parsing
-- **Testing**: pytest with 58 unit tests across LLM providers, pattern analysis, production logs, and remediation
-
----
-
-## 📋 Project Structure
-
-```
-opspilot/
-├── agents/                    # Four specialized AI agents
-│   ├── planner.py            # Hypothesis generation
-│   ├── verifier.py           # Evidence-based verification
-│   ├── fixer.py              # Safe fix suggestions
-│   └── remediation.py        # 3-tier remediation plans
-├── context/                   # Context gathering modules
-│   ├── logs.py               # Log analysis
-│   ├── env.py                # Environment variables
-│   ├── deps.py               # Dependency detection
-│   ├── docker.py             # Docker configuration
-│   ├── project.py            # Project structure
-│   ├── production_logs.py    # Multi-source log fetching (S3, K8s, CloudWatch)
-│   ├── deployment_history.py # Git-based deployment correlation
-│   └── pattern_analysis.py   # Error pattern detection & severity classification
-├── utils/                     # Shared utilities
-│   ├── llm_providers.py      # Multi-provider LLM router with fallback
-│   └── llm.py                # Backward-compatible LLM wrapper
-├── tools/                     # Evidence collection utilities
-│   ├── log_tools.py          # Log error analysis
-│   ├── env_tools.py          # Environment validation
-│   └── dep_tools.py          # Dependency checking
-├── diffs/                     # Domain-specific fix templates
-├── memory.py                  # File-based memory (fallback)
-├── memory_redis.py            # Redis-based memory with user isolation
-├── tests/                     # Test suite (58 tests)
-│   ├── test_pattern_analysis.py
-│   ├── test_production_logs.py
-│   ├── test_remediation.py
-│   └── test_llm_providers.py
-└── cli.py                     # Command-line interface
-```
-
----
-
-## 🔒 Safety & Design Principles
-
-- **Dry-Run Only**: Never automatically applies changes to your code
-- **Evidence-Based**: All suggestions backed by concrete evidence
-- **Confidence Scoring**: Transparent about certainty levels (0.0 - 1.0)
-- **Privacy-Focused**: Prefers local LLM (Ollama) with automatic fallback to cloud
-- **User Isolation**: Redis memory uses SHA-256 project hashing for complete data separation
-- **Auto-Expiring Data**: Incidents automatically expire after configurable TTL (default 30 days)
-- **High Availability**: Multi-provider LLM system with automatic failover
-- **Modular Design**: Easy to extend with new agents, providers, or context sources
-- **Production-Ready**: Comprehensive test coverage, error handling, and graceful degradation
-
----
-
-## 🛠️ Development
-
-### Running from Source
-
-```bash
-# Install in development mode
-pip install -e .
-
-# Run the CLI
-opspilot analyze
-```
-
-### Requirements
-
-- Python 3.8+
-- At least one LLM provider (see Quick Start)
-- Optional: Redis for production incident memory
-
-### Running Tests
-
-```bash
-# Install test dependencies
+git clone https://github.com/choudharikiranv15/OpsPilot-AI.git
+cd OpsPilot-AI
 pip install -e ".[dev]"
-
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=opspilot tests/
-
-# Run specific test file
-pytest tests/test_llm_providers.py
+pytest                      # unit and end-to-end tests (no network or Ollama needed)
+ruff check . && ruff format --check .
 ```
 
----
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [ARCHITECTURE.md](ARCHITECTURE.md). Security issues: [SECURITY.md](SECURITY.md).
 
-## 🗺️ Roadmap
+## License
 
-- [x] Multi-provider LLM support with automatic fallback
-- [x] Comprehensive test coverage (58 tests)
-- [x] Redis-based memory with user isolation
-- [x] Production log fetching (S3, K8s, CloudWatch)
-- [x] Deployment correlation analysis
-- [x] Severity classification (P0/P1/P2/P3)
-- [ ] Plugin system for custom agents
-- [ ] Web API for remote usage
-- [ ] More domain-specific fix templates (PostgreSQL, MongoDB, etc.)
-- [ ] Real-time metrics dashboard
-- [ ] Slack/PagerDuty integration for incident alerts
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! This project is under active development. Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-For major changes, please open an issue first to discuss your ideas.
-
----
-
-## 📧 Contact
-
-For questions or feedback, please open an issue on GitHub.
-
----
-
-**Built with ❤️ using agentic AI principles**
-
----
-
-## 📦 PyPI
-
-This package is available on PyPI: [opspilot-ai](https://pypi.org/project/opspilot-ai/)
+MIT; see [LICENSE](LICENSE).

@@ -1,3 +1,5 @@
+> **Note:** These are research notes and ideas from August 2026, not a roadmap or a description of current behaviour. Several ideas here (auto-remediation, ML incident prediction, dashboards) are explicitly out of scope for 0.2.x; see `OPSPILOT_AUDIT_REPORT.md` and `OPSPILOT_RELEASE_CHECKLIST.md`.
+
 # Production Debugging Research & OpsPilot Enhancement Roadmap
 
 ## 📊 Research Summary: How Production Errors Are Actually Debugged

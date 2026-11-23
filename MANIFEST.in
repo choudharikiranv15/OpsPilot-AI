@@ -1,28 +1,10 @@
-# Include documentation
-include README.md
-include LICENSE
-include ARCHITECTURE.md
-include DEPLOYMENT.md
+# Source distribution contents (the wheel contains only the opspilot package)
+include README.md LICENSE CHANGELOG.md SECURITY.md CONTRIBUTING.md
+include ARCHITECTURE.md EXAMPLES.md config.env.example
+recursive-include docs *.md
+recursive-include tests *.py *.md
+recursive-include tests/fixtures *
+include tests/fixtures/sample_project/.env
 
-# Include configuration templates
-include .env.example
-
-# Include package data
-recursive-include opspilot *.py
-recursive-include opspilot *.json
-
-# Include tests
-recursive-include tests *.py
-
-# Exclude development and build artifacts
-global-exclude __pycache__
-global-exclude *.py[co]
-global-exclude .DS_Store
-global-exclude *.so
-global-exclude *.dylib
-exclude .env
-exclude .gitignore
-prune .git
-prune build
-prune dist
-prune *.egg-info
+global-exclude __pycache__ *.py[co] .DS_Store
+prune .github
