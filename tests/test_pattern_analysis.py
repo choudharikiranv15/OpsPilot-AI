@@ -219,3 +219,21 @@ class TestIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ('10.0.0.1 - - [20/Nov/2026] "GET /api HTTP/1.1" 503 512', {"503": 1}),
+        ("ERROR upstream returned 502", {"502": 1}),
+        ("request failed with status=429", {"429": 1}),
+        ("GET /api/orders failed with status 503", {"503": 1}),
+        ("HTTP 404 - Not Found", {"404": 1}),
+        ("payments-api: 503 Service Unavailable", {"503": 1}),
+        ("listening on port 500", {}),
+        ('File "app.py", line 404, in handler', {}),
+        ("processed 412 records in 503 ms", {}),
+    ],
+)
+def test_http_status_requires_http_context(line, expected):
+    assert _extract_http_errors(line) == expected

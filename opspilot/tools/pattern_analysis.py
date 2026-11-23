@@ -33,10 +33,23 @@ def identify_error_patterns(logs: str) -> dict:
     return {k: v for k, v in patterns.items() if v}
 
 
+# A 4xx/5xx number only counts as an HTTP status when the context says so:
+# access logs ('"GET / HTTP/1.1" 503'), 'HTTP 500', 'status=502', 'returned 404',
+# or a following reason phrase ('503 Service Unavailable'). Bare numbers such as
+# ports, line numbers or durations are ignored.
+_HTTP_STATUS = re.compile(
+    r"(?:HTTP/\d(?:\.\d)?\"?\s+|\b(?:HTTP|status(?:[ _]?code)?|code|returned|"
+    r"responded(?: with)?|response)[\s:=]+)([45]\d{2})\b"
+    r"|\b([45]\d{2})\s+(?:-\s+)?(?:Bad Request|Unauthorized|Forbidden|Not Found|"
+    r"Method Not Allowed|Conflict|Gone|Too Many Requests|Internal Server Error|"
+    r"Not Implemented|Bad Gateway|Service Unavailable|Gateway Time-?out)\b",
+    re.IGNORECASE,
+)
+
+
 def _extract_http_errors(logs: str) -> dict[str, int]:
-    """Extract HTTP error codes (4xx, 5xx)."""
-    http_pattern = r"\b(4\d{2}|5\d{2})\b"
-    codes = re.findall(http_pattern, logs)
+    """Count HTTP 4xx/5xx status codes that appear in an HTTP context."""
+    codes = [a or b for a, b in _HTTP_STATUS.findall(logs)]
     return dict(Counter(codes)) if codes else {}
 
 
