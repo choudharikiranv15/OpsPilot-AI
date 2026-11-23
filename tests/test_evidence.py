@@ -135,3 +135,14 @@ def test_dependency_hypotheses_may_target_the_manifest(tmp_path):
     bug = Hypothesis(cause="typo", category="code_bug", evidence=["F2"])
     assert target_files([frame], dep, str(tmp_path)) == ["requirements.txt", "app.py"]
     assert target_files([frame], bug, str(tmp_path)) == ["app.py"]
+
+
+def test_category_normalisation():
+    from opspilot.agents.planner import normalize_category
+
+    assert normalize_category("database|network") == "database"
+    assert normalize_category("environment_variable|build_error") == "configuration"
+    assert normalize_category("Resource-Exhaustion") == "resource_exhaustion"
+    assert normalize_category("syntax error") == "code_bug"
+    assert normalize_category("something odd") == "other"
+    assert normalize_category("") == "other"
