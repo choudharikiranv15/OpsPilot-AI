@@ -17,8 +17,6 @@ if sys.platform == "win32":
     except (AttributeError, OSError):
         pass  # Fallback for older Python or non-standard terminals
 
-from dotenv import load_dotenv
-
 from opspilot.agents.fixer import suggest
 from opspilot.agents.planner import plan
 from opspilot.agents.remediation import (
@@ -40,13 +38,12 @@ from opspilot.context.logs import read_logs
 from opspilot.context.production_logs import auto_detect_and_fetch
 from opspilot.context.project import scan_project_tree
 from opspilot.diffs.redis import redis_pooling_diff, redis_timeout_diff
+from opspilot.exceptions import LLMError
+from opspilot.llm import LLMRouter, ProviderStatus
 from opspilot.memory import find_similar_issues, save_memory
+from opspilot.settings import get_settings, user_config_file
 from opspilot.state import AgentState
 from opspilot.tools import collect_evidence
-from opspilot.utils.llm import check_any_llm_available, get_llm_router
-
-# Load environment variables from .env file (searches in current directory and parents)
-load_dotenv(verbose=False, override=False)  # Don't override existing env vars
 
 app = typer.Typer(help="OpsPilot - Agentic AI CLI for incident analysis")
 console = Console()
@@ -369,6 +366,18 @@ def analyze(
         "--min-confidence",
         help=f"Override minimum confidence threshold (default: {CONFIDENCE_THRESHOLD})",
     ),
+    provider: str = typer.Option(
+        None,
+        "--provider",
+        help="LLM provider: auto (local Ollama only, default), ollama, gemini, "
+        "openrouter, anthropic. Naming a cloud provider opts in to sending data to it.",
+    ),
+    model: str = typer.Option(None, "--model", help="Model name for the provider"),
+    allow_cloud: bool = typer.Option(
+        False,
+        "--allow-cloud",
+        help="In auto mode, allow falling back to cloud providers with configured keys",
+    ),
 ):
     """
     Analyze the current project for runtime issues.
@@ -386,30 +395,15 @@ def analyze(
     try:
         project_root = str(Path.cwd())
 
-        # LLM required for quick/deep modes only
-        if mode != "explain" and not check_any_llm_available():
-            console.print(
-                "[red]ERROR:[/red] No LLM provider available.\n\n"
-                "[bold]Setup at least one FREE/open-source provider:[/bold]\n\n"
-                "1. [cyan]Ollama[/cyan] (local, 100% free & private)\n"
-                "   curl -fsSL https://ollama.ai/install.sh | sh\n"
-                "   ollama pull llama3\n\n"
-                "2. [cyan]Google Gemini[/cyan] (cloud, free tier)\n"
-                "   Get key: https://aistudio.google.com/\n"
-                "   export GOOGLE_API_KEY='your-key'\n\n"
-                "3. [cyan]OpenRouter[/cyan] (cloud, free models)\n"
-                "   Get key: https://openrouter.ai/\n"
-                "   export OPENROUTER_API_KEY='your-key'\n\n"
-                "4. [cyan]HuggingFace[/cyan] (cloud, free tier)\n"
-                "   Get key: https://huggingface.co/settings/tokens\n"
-                "   export HUGGINGFACE_API_KEY='your-key'"
-            )
-            raise typer.Exit(code=1)
-
+        router = None
         if mode != "explain":
-            router = get_llm_router()
-            available = router.get_available_providers()
-            console.print(f"[dim]LLM providers available: {', '.join(available)}[/dim]")
+            settings = get_settings(
+                provider=provider, model=model, allow_cloud=allow_cloud or None
+            )
+            router = LLMRouter(settings, notify=_announce_provider)
+            if not router.ready():
+                _print_provider_problems(router)
+                raise typer.Exit(code=2)
         else:
             console.print("[dim]Explain mode: context gathering only (no LLM)[/dim]")
 
@@ -622,16 +616,13 @@ def analyze(
         with console.status(
             "[cyan]Analyzing project context with LLM...[/cyan]", spinner="dots"
         ):
-            plan_result = plan(state.context)
+            plan_result = plan(state.context, router)
         if debug:
             console.print("[dim][debug] planner done[/dim]")
 
-        state.hypothesis = plan_result.get("hypothesis")
-        state.confidence = plan_result.get("confidence")
-        state.checks_remaining = plan_result.get("required_checks", [])
-
-        if "error" in plan_result:
-            console.print("[bold red]⚠ Planner Error:[/bold red]", plan_result["error"])
+        state.hypothesis = plan_result.hypothesis
+        state.confidence = plan_result.confidence
+        state.checks_remaining = plan_result.required_checks
 
         console.print("[bold yellow]Hypothesis:[/bold yellow]", state.hypothesis)
         console.print("[bold yellow]Confidence:[/bold yellow]", state.confidence)
@@ -641,7 +632,7 @@ def analyze(
             if debug:
                 console.print("[dim][debug] verifying[/dim]")
             console.print("[cyan]Verifying hypothesis...[/cyan]")
-            verdict = verify(state.hypothesis, evidence)
+            verdict = verify(state.hypothesis, evidence, router).model_dump()
             if debug:
                 console.print("[dim][debug] verification done[/dim]")
 
@@ -676,10 +667,8 @@ def analyze(
                 suggestions.append(redis_pooling_diff())
 
             if not suggestions:
-                llm_suggestions = suggest(state.hypothesis, evidence).get(
-                    "suggestions", []
-                )
-                suggestions.extend(llm_suggestions)
+                fix_result = suggest(state.hypothesis, evidence, router)
+                suggestions.extend(s.model_dump() for s in fix_result.suggestions)
 
             if suggestions:
                 for s in suggestions:
@@ -754,6 +743,9 @@ def analyze(
     except KeyboardInterrupt:
         console.print("\n[yellow]Analysis interrupted by user[/yellow]")
         raise typer.Exit(code=130) from None
+    except LLMError as e:
+        console.print(f"[red]LLM error:[/red] {e}")
+        raise typer.Exit(code=1) from e
     except FileNotFoundError as e:
         console.print(f"[red]ERROR:[/red] File not found: {e}")
         if debug:
@@ -768,3 +760,56 @@ def analyze(
 
             console.print(traceback.format_exc())
         raise typer.Exit(code=1) from e
+
+
+def _announce_provider(status: ProviderStatus) -> None:
+    """Tell the user where data is about to be sent, before sending it."""
+    style = "yellow" if status.is_cloud else "dim"
+    console.print(f"[{style}]Using LLM: {status.label}[/{style}]")
+
+
+def _print_provider_problems(router: LLMRouter) -> None:
+    console.print("[red]ERROR:[/red] No permitted LLM provider is ready.")
+    for status in router.statuses():
+        console.print(f"  - {status.name}: {status.detail}")
+    console.print(router.unavailable_hint())
+
+
+@app.command()
+def doctor(
+    provider: str = typer.Option(None, "--provider", help="Provider to check"),
+    model: str = typer.Option(None, "--model", help="Model to check"),
+    allow_cloud: bool = typer.Option(
+        False, "--allow-cloud", help="Include cloud providers in auto mode"
+    ),
+):
+    """Check LLM provider configuration and connectivity."""
+    from opspilot.llm import PROVIDERS, make_session, permitted_provider_names
+
+    settings = get_settings(
+        provider=provider, model=model, allow_cloud=allow_cloud or None
+    )
+    config_file = user_config_file()
+    found = "found" if config_file.is_file() else "not found, using defaults"
+    console.print(f"OpsPilot {VERSION}")
+    console.print(f"Config file: {config_file} ({found})")
+    console.print(f"Provider setting: {settings.provider}")
+    console.print(f"Cloud fallback allowed: {settings.allow_cloud}")
+    permitted = permitted_provider_names(settings)
+    session = make_session()
+    any_ready = False
+    console.print("")
+    console.print("Providers:")
+    for name, cls in PROVIDERS.items():
+        status = cls(settings, session).status()
+        allowed = name in permitted
+        any_ready = any_ready or (allowed and status.ready)
+        mark = "[green]ready[/green]" if status.ready else "[red]not ready[/red]"
+        use = "will be used" if allowed else "not permitted by current settings"
+        console.print(f"  {status.label}: {mark}, {use}")
+        console.print(f"      {status.detail}")
+    console.print("")
+    if not any_ready:
+        console.print("[red]No permitted provider is ready.[/red]")
+        raise typer.Exit(code=2)
+    console.print("[green]OK[/green]: at least one permitted provider is ready.")
