@@ -8,9 +8,9 @@ import pytest
 from typer.testing import CliRunner
 
 from opspilot.cli import app
-from opspilot.context import collect_context
 from opspilot.context.docker import find_docker_files
 from opspilot.context.env import read_env_names
+from opspilot.pipeline import AnalyzeOptions, run_analysis
 from tests.conftest import CANARY, assert_no_canary
 
 runner = CliRunner()
@@ -33,7 +33,8 @@ def test_collected_context_contains_no_secret_values(sample_project: Path) -> No
     (sample_project / "Dockerfile").write_text(
         f"ENV TOKEN={CANARY}\n", encoding="utf-8"
     )
-    assert_no_canary(repr(collect_context(str(sample_project))))
+    result = run_analysis(AnalyzeOptions(str(sample_project), use_llm=False), None)
+    assert_no_canary(result.model_dump_json())
 
 
 @pytest.mark.parametrize("report", ["report.json", "report.md", "report.txt"])
