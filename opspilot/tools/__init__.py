@@ -97,7 +97,7 @@ def collect_evidence(context: dict) -> dict:
     evidence = {}
 
     logs = context.get("logs")
-    env = context.get("env", {})
+    env = context.get("env", [])
     deps = context.get("dependencies", [])
     build_errors = context.get("build_errors")
 

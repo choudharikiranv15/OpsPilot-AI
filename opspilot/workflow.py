@@ -341,10 +341,10 @@ class TroubleshootingWorkflow:
         2. Invalid configurations
         3. Secrets/credentials issues
         """
-        from opspilot.context.env import read_env
+        from opspilot.context.env import read_env_names
         from opspilot.tools.env_tools import find_missing_env
 
-        env = read_env(self.project_root)
+        env = read_env_names(self.project_root)
         self.context.env_var_count = len(env)
 
         # Check for commonly missing env vars
