@@ -46,7 +46,7 @@ pipx install git+https://github.com/choudharikiranv15/OpsPilot-AI.git
    opspilot doctor
    ```
 
-Small models such as `llama3.2` (3B) work, but their diagnoses are noticeably weaker. On OpsPilot's 12-case evaluation, `llama3.2` picked the right root-cause category 9 times out of 12 and the 8B `llama3` 11 times, at about twice the latency ([docs/evaluation.md](docs/evaluation.md)). If your hardware allows, use a larger instruction-tuned model with `--model` or `OPSPILOT_OLLAMA_MODEL`. OpsPilot never downloads models for you; if the configured model is missing it tells you the `ollama pull` command.
+Small models such as `llama3.2` (3B) work, but their diagnoses are noticeably weaker. On OpsPilot's 12-case evaluation, `llama3.2` picked the right root-cause category 9 times out of 12 and the 8B `llama3` 11 times, at about twice the latency ([docs/evaluation.md](docs/evaluation.md)). On real projects the gap is larger, so if your hardware allows, use an 8B or larger instruction-tuned model with `--model` or `OPSPILOT_OLLAMA_MODEL`. OpsPilot never downloads models for you; if the configured model is missing it tells you the `ollama pull` command.
 
 Prefer a hosted model? See [Cloud providers](#cloud-providers-opt-in).
 

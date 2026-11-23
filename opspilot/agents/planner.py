@@ -22,6 +22,9 @@ Task: give up to 3 root-cause hypotheses, most likely first.
 
 Rules:
 - Every hypothesis must list the fact IDs that support it in "evidence".
+- Be specific: name the file, module, setting or error code involved. Facts
+  marked (xN) occurred N times; a fact that accounts for most errors usually
+  points to the main cause.
 - Use only the facts and project summary. Do not invent files, errors or values.
 - If the facts are not enough, say what is missing in "missing_information".
 - "next_steps" are read-only checks the user can run to confirm the cause
