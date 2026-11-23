@@ -135,7 +135,7 @@ pytest tests/ -m "integration" -v
 All tests use mocks for external services (no real API calls):
 
 ```python
-@patch('opspilot.context.production_logs.requests.get')
+@patch("opspilot.context.production_logs.requests.get")
 def test_fetch_from_url_success(self, mock_get):
     """Test successful URL log fetch."""
     mock_response = Mock()
@@ -228,17 +228,20 @@ class TestNewFeature:
         with pytest.raises(ValueError):
             function_to_test(None)
 
-    @pytest.mark.parametrize("input,expected", [
-        ("test1", "result1"),
-        ("test2", "result2"),
-    ])
+    @pytest.mark.parametrize(
+        "input,expected",
+        [
+            ("test1", "result1"),
+            ("test2", "result2"),
+        ],
+    )
     def test_multiple_cases(self, input, expected):
         """Test multiple input cases."""
         assert function_to_test(input) == expected
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
 ```
 
 ---

@@ -10,41 +10,42 @@ Supports:
 
 import json
 import os
-import subprocess
 import shutil
+import subprocess
 import time
-from pathlib import Path
-from typing import Dict, Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
+
 import requests
 
 from opspilot.constants import (
-    LLM_TIMEOUT,
-    LLM_MAX_RETRIES,
-    LLM_RETRY_DELAY,
-    LLM_RETRY_MULTIPLIER,
     CIRCUIT_BREAKER_THRESHOLD,
     CIRCUIT_BREAKER_TIMEOUT,
-    LLM_MAX_TOKENS,
-    LLM_TEMPERATURE,
-    OLLAMA_SUBPROCESS_TIMEOUT,
     DEFAULT_MODELS,
+    LLM_MAX_RETRIES,
+    LLM_MAX_TOKENS,
+    LLM_RETRY_DELAY,
+    LLM_RETRY_MULTIPLIER,
+    LLM_TEMPERATURE,
+    LLM_TIMEOUT,
+    OLLAMA_SUBPROCESS_TIMEOUT,
 )
 from opspilot.exceptions import (
     LLMError,
-    LLMTimeoutError,
-    LLMResponseError,
-    LLMRateLimitError,
     LLMParseError,
+    LLMRateLimitError,
+    LLMResponseError,
+    LLMTimeoutError,
 )
 
 
 @dataclass
 class CircuitBreaker:
     """Circuit breaker for provider failure protection."""
+
     failure_count: int = 0
-    last_failure_time: Optional[datetime] = None
+    last_failure_time: datetime | None = None
     is_open: bool = False
 
     def record_failure(self):
@@ -84,6 +85,7 @@ class CircuitBreaker:
 @dataclass
 class ProviderStats:
     """Statistics for a provider."""
+
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
@@ -142,7 +144,7 @@ class LLMProvider:
         if not self.stats.circuit_breaker.can_attempt():
             raise LLMError(
                 f"{self.__class__.__name__} circuit breaker is open",
-                "Too many recent failures, waiting for cooldown"
+                "Too many recent failures, waiting for cooldown",
             )
 
         last_error = None
@@ -170,7 +172,7 @@ class LLMProvider:
 
                 # Check if it's a rate limit error - don't retry immediately
                 if "rate limit" in str(e).lower() or "429" in str(e):
-                    raise LLMRateLimitError(self.__class__.__name__)
+                    raise LLMRateLimitError(self.__class__.__name__) from e
 
                 # If we have retries left, wait and try again
                 if attempt < max_retries:
@@ -180,10 +182,10 @@ class LLMProvider:
         # All retries exhausted
         raise LLMError(
             f"{self.__class__.__name__} failed after {max_retries + 1} attempts",
-            str(last_error)
+            str(last_error),
         )
 
-    def parse_json(self, raw: str) -> Dict:
+    def parse_json(self, raw: str) -> dict:
         """Parse JSON from LLM output."""
         # Try parsing as-is first
         try:
@@ -214,11 +216,11 @@ class LLMProvider:
             pass
 
         # Try extracting JSON object
-        start_idx = raw.find('{')
-        end_idx = raw.rfind('}')
+        start_idx = raw.find("{")
+        end_idx = raw.rfind("}")
 
         if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
-            json_str = raw[start_idx:end_idx + 1]
+            json_str = raw[start_idx : end_idx + 1]
             try:
                 return json.loads(json_str)
             except json.JSONDecodeError:
@@ -234,7 +236,7 @@ class OllamaProvider(LLMProvider):
         super().__init__(timeout)
         self.model = model or DEFAULT_MODELS.get("ollama", "llama3")
 
-    def _resolve_ollama_path(self) -> Optional[str]:
+    def _resolve_ollama_path(self) -> str | None:
         """Resolve Ollama binary path."""
         ollama_path = shutil.which("ollama")
         if ollama_path:
@@ -258,7 +260,7 @@ class OllamaProvider(LLMProvider):
                 [ollama_path, "list"],
                 capture_output=True,
                 timeout=OLLAMA_SUBPROCESS_TIMEOUT,
-                check=True
+                check=True,
             )
             return result.returncode == 0
         except Exception:
@@ -277,7 +279,7 @@ class OllamaProvider(LLMProvider):
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
-                timeout=self.timeout
+                timeout=self.timeout,
             )
 
             if process.returncode != 0:
@@ -286,7 +288,7 @@ class OllamaProvider(LLMProvider):
             return process.stdout.strip()
 
         except subprocess.TimeoutExpired:
-            raise LLMTimeoutError("Ollama", self.timeout)
+            raise LLMTimeoutError("Ollama", self.timeout) from None
 
 
 class OpenRouterProvider(LLMProvider):
@@ -305,28 +307,28 @@ class OpenRouterProvider(LLMProvider):
     def call(self, prompt: str) -> str:
         """Call OpenRouter API with free models."""
         if not self.api_key:
-            raise LLMError("OpenRouter API key not set", "Set OPENROUTER_API_KEY environment variable")
+            raise LLMError(
+                "OpenRouter API key not set",
+                "Set OPENROUTER_API_KEY environment variable",
+            )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/opspilot",
-            "X-Title": "OpsPilot"
+            "X-Title": "OpsPilot",
         }
 
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": LLM_TEMPERATURE,
-            "max_tokens": LLM_MAX_TOKENS
+            "max_tokens": LLM_MAX_TOKENS,
         }
 
         try:
             response = requests.post(
-                self.base_url,
-                headers=headers,
-                json=payload,
-                timeout=self.timeout
+                self.base_url, headers=headers, json=payload, timeout=self.timeout
             )
 
             if response.status_code == 429:
@@ -335,7 +337,9 @@ class OpenRouterProvider(LLMProvider):
             if not response.ok:
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get("error", {}).get("message", response.text)
+                    error_msg = error_data.get("error", {}).get(
+                        "message", response.text
+                    )
                 except Exception:
                     error_msg = response.text or f"HTTP {response.status_code}"
                 raise LLMResponseError("OpenRouter", error_msg)
@@ -350,9 +354,9 @@ class OpenRouterProvider(LLMProvider):
             return content
 
         except requests.Timeout:
-            raise LLMTimeoutError("OpenRouter", self.timeout)
+            raise LLMTimeoutError("OpenRouter", self.timeout) from None
         except requests.RequestException as e:
-            raise LLMError("OpenRouter API call failed", str(e))
+            raise LLMError("OpenRouter API call failed", str(e)) from e
 
 
 class HuggingFaceProvider(LLMProvider):
@@ -360,7 +364,9 @@ class HuggingFaceProvider(LLMProvider):
 
     def __init__(self, model: str = None, timeout: int = LLM_TIMEOUT):
         super().__init__(timeout)
-        self.model = model or DEFAULT_MODELS.get("huggingface", "mistralai/Mistral-7B-Instruct-v0.2")
+        self.model = model or DEFAULT_MODELS.get(
+            "huggingface", "mistralai/Mistral-7B-Instruct-v0.2"
+        )
         self.api_key = os.getenv("HUGGINGFACE_API_KEY")
         self.base_url = f"https://api-inference.huggingface.co/models/{self.model}"
 
@@ -371,11 +377,14 @@ class HuggingFaceProvider(LLMProvider):
     def call(self, prompt: str) -> str:
         """Call HuggingFace Inference API."""
         if not self.api_key:
-            raise LLMError("HuggingFace API key not set", "Set HUGGINGFACE_API_KEY environment variable")
+            raise LLMError(
+                "HuggingFace API key not set",
+                "Set HUGGINGFACE_API_KEY environment variable",
+            )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         payload = {
@@ -383,16 +392,13 @@ class HuggingFaceProvider(LLMProvider):
             "parameters": {
                 "temperature": LLM_TEMPERATURE,
                 "max_new_tokens": LLM_MAX_TOKENS,
-                "return_full_text": False
-            }
+                "return_full_text": False,
+            },
         }
 
         try:
             response = requests.post(
-                self.base_url,
-                headers=headers,
-                json=payload,
-                timeout=self.timeout
+                self.base_url, headers=headers, json=payload, timeout=self.timeout
             )
 
             if response.status_code == 429:
@@ -409,9 +415,9 @@ class HuggingFaceProvider(LLMProvider):
                 return str(data)
 
         except requests.Timeout:
-            raise LLMTimeoutError("HuggingFace", self.timeout)
+            raise LLMTimeoutError("HuggingFace", self.timeout) from None
         except requests.RequestException as e:
-            raise LLMError("HuggingFace API call failed", str(e))
+            raise LLMError("HuggingFace API call failed", str(e)) from e
 
 
 class AnthropicProvider(LLMProvider):
@@ -419,7 +425,9 @@ class AnthropicProvider(LLMProvider):
 
     def __init__(self, model: str = None, timeout: int = LLM_TIMEOUT):
         super().__init__(timeout)
-        self.model = model or DEFAULT_MODELS.get("anthropic", "claude-3-5-haiku-20241022")
+        self.model = model or DEFAULT_MODELS.get(
+            "anthropic", "claude-3-5-haiku-20241022"
+        )
         self.api_key = os.getenv("ANTHROPIC_API_KEY")
         self.base_url = "https://api.anthropic.com/v1/messages"
 
@@ -430,26 +438,26 @@ class AnthropicProvider(LLMProvider):
     def call(self, prompt: str) -> str:
         """Call Anthropic API."""
         if not self.api_key:
-            raise LLMError("Anthropic API key not set", "Set ANTHROPIC_API_KEY environment variable")
+            raise LLMError(
+                "Anthropic API key not set",
+                "Set ANTHROPIC_API_KEY environment variable",
+            )
 
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         payload = {
             "model": self.model,
             "max_tokens": LLM_MAX_TOKENS,
-            "messages": [{"role": "user", "content": prompt}]
+            "messages": [{"role": "user", "content": prompt}],
         }
 
         try:
             response = requests.post(
-                self.base_url,
-                headers=headers,
-                json=payload,
-                timeout=self.timeout
+                self.base_url, headers=headers, json=payload, timeout=self.timeout
             )
 
             if response.status_code == 429:
@@ -467,9 +475,9 @@ class AnthropicProvider(LLMProvider):
             return text
 
         except requests.Timeout:
-            raise LLMTimeoutError("Anthropic", self.timeout)
+            raise LLMTimeoutError("Anthropic", self.timeout) from None
         except requests.RequestException as e:
-            raise LLMError("Anthropic API call failed", str(e))
+            raise LLMError("Anthropic API call failed", str(e)) from e
 
 
 class GeminiProvider(LLMProvider):
@@ -487,7 +495,9 @@ class GeminiProvider(LLMProvider):
     def call(self, prompt: str) -> str:
         """Call Google Gemini API."""
         if not self.api_key:
-            raise LLMError("Google API key not set", "Set GOOGLE_API_KEY environment variable")
+            raise LLMError(
+                "Google API key not set", "Set GOOGLE_API_KEY environment variable"
+            )
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
@@ -500,8 +510,8 @@ class GeminiProvider(LLMProvider):
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": LLM_TEMPERATURE,
-                "maxOutputTokens": LLM_MAX_TOKENS
-            }
+                "maxOutputTokens": LLM_MAX_TOKENS,
+            },
         }
 
         try:
@@ -515,7 +525,9 @@ class GeminiProvider(LLMProvider):
             if not response.ok:
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get("error", {}).get("message", response.text)
+                    error_msg = error_data.get("error", {}).get(
+                        "message", response.text
+                    )
                 except Exception:
                     error_msg = response.text or f"HTTP {response.status_code}"
                 raise LLMResponseError("Gemini", error_msg)
@@ -530,9 +542,9 @@ class GeminiProvider(LLMProvider):
             return parts[0].get("text", "")
 
         except requests.Timeout:
-            raise LLMTimeoutError("Gemini", self.timeout)
+            raise LLMTimeoutError("Gemini", self.timeout) from None
         except requests.RequestException as e:
-            raise LLMError("Gemini API call failed", str(e))
+            raise LLMError("Gemini API call failed", str(e)) from e
 
 
 class LLMRouter:
@@ -547,26 +559,26 @@ class LLMRouter:
         """
         self.prefer_local = prefer_local
         self.providers = self._initialize_providers()
-        self.last_successful_provider: Optional[LLMProvider] = None
+        self.last_successful_provider: LLMProvider | None = None
 
-    def _initialize_providers(self) -> List[LLMProvider]:
+    def _initialize_providers(self) -> list[LLMProvider]:
         """Initialize providers in priority order (all free/open-source)."""
         if self.prefer_local:
             return [
                 OllamaProvider(),
                 GeminiProvider(),
                 OpenRouterProvider(),
-                HuggingFaceProvider()
+                HuggingFaceProvider(),
             ]
         else:
             return [
                 GeminiProvider(),
                 OpenRouterProvider(),
                 HuggingFaceProvider(),
-                OllamaProvider()
+                OllamaProvider(),
             ]
 
-    def get_available_providers(self) -> List[str]:
+    def get_available_providers(self) -> list[str]:
         """Get list of available provider names."""
         available = []
         for provider in self.providers:
@@ -574,7 +586,7 @@ class LLMRouter:
                 available.append(provider.__class__.__name__)
         return available
 
-    def get_provider_stats(self) -> Dict[str, Dict]:
+    def get_provider_stats(self) -> dict[str, dict]:
         """Get statistics for all providers."""
         stats = {}
         for provider in self.providers:
@@ -605,14 +617,18 @@ class LLMRouter:
         errors = []
 
         # Try last successful provider first (if circuit is healthy)
-        if self.last_successful_provider:
-            if self.last_successful_provider.stats.circuit_breaker.can_attempt():
-                try:
-                    self.last_successful_provider.timeout = timeout
-                    result = self.last_successful_provider.call_with_retry(prompt)
-                    return result
-                except Exception as e:
-                    errors.append(f"{self.last_successful_provider.__class__.__name__}: {e}")
+        if (
+            self.last_successful_provider
+            and self.last_successful_provider.stats.circuit_breaker.can_attempt()
+        ):
+            try:
+                self.last_successful_provider.timeout = timeout
+                result = self.last_successful_provider.call_with_retry(prompt)
+                return result
+            except Exception as e:
+                errors.append(
+                    f"{self.last_successful_provider.__class__.__name__}: {e}"
+                )
 
         # Try all providers
         for provider in self.providers:
@@ -632,7 +648,7 @@ class LLMRouter:
                 self.last_successful_provider = provider
                 return result
 
-            except LLMRateLimitError as e:
+            except LLMRateLimitError:
                 errors.append(f"{provider.__class__.__name__}: Rate limited")
                 continue
             except Exception as e:
@@ -648,10 +664,10 @@ class LLMRouter:
             f"1. Ollama (local): Install from https://ollama.ai/ → ollama pull llama3\n"
             f"2. Google Gemini (free tier): Get key at https://aistudio.google.com/ → export GOOGLE_API_KEY=...\n"
             f"3. OpenRouter (free models): Get key at https://openrouter.ai/ → export OPENROUTER_API_KEY=...\n"
-            f"4. HuggingFace (free tier): Get key at https://huggingface.co/settings/tokens → export HUGGINGFACE_API_KEY=..."
+            f"4. HuggingFace (free tier): Get key at https://huggingface.co/settings/tokens → export HUGGINGFACE_API_KEY=...",
         )
 
-    def safe_json_parse(self, raw: str, retry_timeout: int = 15) -> Dict:
+    def safe_json_parse(self, raw: str, retry_timeout: int = 15) -> dict:
         """
         Parse JSON from LLM output with retry.
 
@@ -686,11 +702,11 @@ INVALID OUTPUT:
             provider = self.last_successful_provider or self.providers[0]
             return provider.parse_json(corrected)
         except Exception:
-            raise LLMParseError(raw)
+            raise LLMParseError(raw) from None
 
 
 # Global router instance
-_global_router: Optional[LLMRouter] = None
+_global_router: LLMRouter | None = None
 
 
 def get_llm_router(prefer_local: bool = True) -> LLMRouter:
@@ -717,7 +733,7 @@ def call_llama(prompt: str, timeout: int = LLM_TIMEOUT) -> str:
     return router.call(prompt, timeout)
 
 
-def safe_json_parse(raw: str, retry_timeout: int = 15) -> Dict:
+def safe_json_parse(raw: str, retry_timeout: int = 15) -> dict:
     """
     Parse JSON from LLM output (backward compatible).
     """

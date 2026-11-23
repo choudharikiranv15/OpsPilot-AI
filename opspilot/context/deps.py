@@ -3,10 +3,9 @@
 import json
 import re
 from pathlib import Path
-from typing import List, Dict, Optional
 
 
-def read_dependencies(project_root: str) -> List[str]:
+def read_dependencies(project_root: str) -> list[str]:
     """
     Read and parse dependencies from various package manager files.
 
@@ -77,25 +76,25 @@ def read_dependencies(project_root: str) -> List[str]:
     return dependencies
 
 
-def parse_requirements_txt(file_path: Path) -> List[str]:
+def parse_requirements_txt(file_path: Path) -> list[str]:
     """Parse Python requirements.txt file."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         deps = []
         for line in content.splitlines():
             line = line.strip()
             # Skip comments and empty lines
-            if not line or line.startswith('#') or line.startswith('-'):
+            if not line or line.startswith("#") or line.startswith("-"):
                 continue
             # Handle git+, http+ URLs
-            if line.startswith(('git+', 'http+', 'https+')):
+            if line.startswith(("git+", "http+", "https+")):
                 # Extract package name from URL
-                match = re.search(r'egg=([a-zA-Z0-9_-]+)', line)
+                match = re.search(r"egg=([a-zA-Z0-9_-]+)", line)
                 if match:
                     deps.append(match.group(1))
                 continue
             # Standard requirement line: package==version or package>=version
-            match = re.match(r'^([a-zA-Z0-9_-]+)', line)
+            match = re.match(r"^([a-zA-Z0-9_-]+)", line)
             if match:
                 deps.append(line)
         return deps
@@ -103,30 +102,30 @@ def parse_requirements_txt(file_path: Path) -> List[str]:
         return []
 
 
-def parse_pipfile(file_path: Path) -> List[str]:
+def parse_pipfile(file_path: Path) -> list[str]:
     """Parse Python Pipfile."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         deps = []
         in_packages = False
         in_dev = False
 
         for line in content.splitlines():
             line = line.strip()
-            if line == '[packages]':
+            if line == "[packages]":
                 in_packages = True
                 in_dev = False
-            elif line == '[dev-packages]':
+            elif line == "[dev-packages]":
                 in_packages = False
                 in_dev = True
-            elif line.startswith('['):
+            elif line.startswith("["):
                 in_packages = False
                 in_dev = False
-            elif (in_packages or in_dev) and '=' in line:
+            elif (in_packages or in_dev) and "=" in line:
                 # Extract package name
-                parts = line.split('=', 1)
+                parts = line.split("=", 1)
                 if parts:
-                    pkg_name = parts[0].strip().strip('"\'')
+                    pkg_name = parts[0].strip().strip("\"'")
                     prefix = "(dev) " if in_dev else ""
                     deps.append(f"{prefix}{pkg_name}")
         return deps
@@ -134,15 +133,15 @@ def parse_pipfile(file_path: Path) -> List[str]:
         return []
 
 
-def parse_pyproject_toml(file_path: Path) -> List[str]:
+def parse_pyproject_toml(file_path: Path) -> list[str]:
     """Parse Python pyproject.toml file."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         deps = []
 
         # Simple regex-based parsing for dependencies
         # Look for dependencies = [...] or requires = [...]
-        dep_pattern = r'(?:dependencies|requires)\s*=\s*\[(.*?)\]'
+        dep_pattern = r"(?:dependencies|requires)\s*=\s*\[(.*?)\]"
         matches = re.findall(dep_pattern, content, re.DOTALL)
 
         for match in matches:
@@ -150,7 +149,7 @@ def parse_pyproject_toml(file_path: Path) -> List[str]:
             quoted = re.findall(r'["\']([^"\']+)["\']', match)
             for dep in quoted:
                 # Extract package name from requirement string
-                pkg_match = re.match(r'^([a-zA-Z0-9_-]+)', dep)
+                pkg_match = re.match(r"^([a-zA-Z0-9_-]+)", dep)
                 if pkg_match:
                     deps.append(dep)
 
@@ -159,26 +158,26 @@ def parse_pyproject_toml(file_path: Path) -> List[str]:
         return []
 
 
-def parse_package_json(file_path: Path) -> List[str]:
+def parse_package_json(file_path: Path) -> list[str]:
     """Parse Node.js package.json file."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         data = json.loads(content)
         deps = []
 
         # Regular dependencies
-        if 'dependencies' in data:
-            for name, version in data['dependencies'].items():
+        if "dependencies" in data:
+            for name, version in data["dependencies"].items():
                 deps.append(f"{name}@{version}")
 
         # Dev dependencies
-        if 'devDependencies' in data:
-            for name, version in data['devDependencies'].items():
+        if "devDependencies" in data:
+            for name, version in data["devDependencies"].items():
                 deps.append(f"(dev) {name}@{version}")
 
         # Peer dependencies
-        if 'peerDependencies' in data:
-            for name, version in data['peerDependencies'].items():
+        if "peerDependencies" in data:
+            for name, version in data["peerDependencies"].items():
                 deps.append(f"(peer) {name}@{version}")
 
         return deps
@@ -186,10 +185,10 @@ def parse_package_json(file_path: Path) -> List[str]:
         return []
 
 
-def parse_gemfile(file_path: Path) -> List[str]:
+def parse_gemfile(file_path: Path) -> list[str]:
     """Parse Ruby Gemfile."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         deps = []
 
         # Match gem 'name' or gem "name" with optional version
@@ -209,10 +208,10 @@ def parse_gemfile(file_path: Path) -> List[str]:
         return []
 
 
-def parse_go_mod(file_path: Path) -> List[str]:
+def parse_go_mod(file_path: Path) -> list[str]:
     """Parse Go go.mod file."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         deps = []
 
         # Match require statements
@@ -223,17 +222,17 @@ def parse_go_mod(file_path: Path) -> List[str]:
         for line in content.splitlines():
             line = line.strip()
 
-            if line.startswith('require ('):
+            if line.startswith("require ("):
                 in_require_block = True
                 continue
-            elif line == ')' and in_require_block:
+            elif line == ")" and in_require_block:
                 in_require_block = False
                 continue
 
-            if in_require_block or line.startswith('require '):
+            if in_require_block or line.startswith("require "):
                 # Extract module path and version
-                line = line.replace('require ', '').strip()
-                if line and not line.startswith('//'):
+                line = line.replace("require ", "").strip()
+                if line and not line.startswith("//"):
                     parts = line.split()
                     if len(parts) >= 2:
                         deps.append(f"{parts[0]}@{parts[1]}")
@@ -245,10 +244,10 @@ def parse_go_mod(file_path: Path) -> List[str]:
         return []
 
 
-def parse_cargo_toml(file_path: Path) -> List[str]:
+def parse_cargo_toml(file_path: Path) -> list[str]:
     """Parse Rust Cargo.toml file."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         deps = []
 
         in_deps = False
@@ -257,20 +256,20 @@ def parse_cargo_toml(file_path: Path) -> List[str]:
         for line in content.splitlines():
             line = line.strip()
 
-            if line == '[dependencies]':
+            if line == "[dependencies]":
                 in_deps = True
                 in_dev_deps = False
-            elif line == '[dev-dependencies]':
+            elif line == "[dev-dependencies]":
                 in_deps = False
                 in_dev_deps = True
-            elif line.startswith('['):
+            elif line.startswith("["):
                 in_deps = False
                 in_dev_deps = False
-            elif (in_deps or in_dev_deps) and '=' in line:
-                parts = line.split('=', 1)
+            elif (in_deps or in_dev_deps) and "=" in line:
+                parts = line.split("=", 1)
                 if parts:
                     name = parts[0].strip()
-                    version = parts[1].strip().strip('"\'')
+                    version = parts[1].strip().strip("\"'")
                     prefix = "(dev) " if in_dev_deps else ""
                     deps.append(f"{prefix}{name}@{version}")
 
@@ -279,10 +278,10 @@ def parse_cargo_toml(file_path: Path) -> List[str]:
         return []
 
 
-def parse_pom_xml(file_path: Path) -> List[str]:
+def parse_pom_xml(file_path: Path) -> list[str]:
     """Parse Java pom.xml file (simple regex-based)."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         deps = []
 
         # Simple regex to extract dependencies
@@ -291,7 +290,7 @@ def parse_pom_xml(file_path: Path) -> List[str]:
         #   <artifactId>example</artifactId>
         #   <version>1.0.0</version>
         # </dependency>
-        dep_pattern = r'<dependency>.*?<groupId>([^<]+)</groupId>.*?<artifactId>([^<]+)</artifactId>(?:.*?<version>([^<]+)</version>)?.*?</dependency>'
+        dep_pattern = r"<dependency>.*?<groupId>([^<]+)</groupId>.*?<artifactId>([^<]+)</artifactId>(?:.*?<version>([^<]+)</version>)?.*?</dependency>"
         matches = re.findall(dep_pattern, content, re.DOTALL)
 
         for match in matches:
@@ -305,10 +304,10 @@ def parse_pom_xml(file_path: Path) -> List[str]:
         return []
 
 
-def parse_build_gradle(file_path: Path) -> List[str]:
+def parse_build_gradle(file_path: Path) -> list[str]:
     """Parse Java build.gradle file."""
     try:
-        content = file_path.read_text(errors='ignore')
+        content = file_path.read_text(errors="ignore")
         deps = []
 
         # Match various dependency declarations
@@ -327,7 +326,7 @@ def parse_build_gradle(file_path: Path) -> List[str]:
         return []
 
 
-def get_project_type(project_root: str) -> Optional[str]:
+def get_project_type(project_root: str) -> str | None:
     """
     Detect the primary project type based on dependency files.
 
@@ -335,7 +334,11 @@ def get_project_type(project_root: str) -> Optional[str]:
     """
     root = Path(project_root)
 
-    if (root / "requirements.txt").exists() or (root / "Pipfile").exists() or (root / "pyproject.toml").exists():
+    if (
+        (root / "requirements.txt").exists()
+        or (root / "Pipfile").exists()
+        or (root / "pyproject.toml").exists()
+    ):
         return "python"
     if (root / "package.json").exists():
         return "node"

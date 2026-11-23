@@ -1,9 +1,9 @@
 """Remediation plan generator for production incidents."""
 
-from typing import Dict, List
 
-
-def generate_remediation_plan(hypothesis: str, evidence: Dict, suggestions: List[Dict]) -> Dict:
+def generate_remediation_plan(
+    hypothesis: str, evidence: dict, suggestions: list[dict]
+) -> dict:
     """
     Generate manager-friendly remediation plan with immediate, short-term, and long-term actions.
 
@@ -19,7 +19,7 @@ def generate_remediation_plan(hypothesis: str, evidence: Dict, suggestions: List
         "immediate_actions": [],
         "short_term_fixes": [],
         "long_term_fixes": [],
-        "verification_steps": []
+        "verification_steps": [],
     }
 
     # Determine issue type from evidence
@@ -27,102 +27,112 @@ def generate_remediation_plan(hypothesis: str, evidence: Dict, suggestions: List
     uses_redis = evidence.get("uses_redis", False)
     has_timeouts = evidence.get("timeout_errors", 0) > 0
     has_http_5xx = any(
-        code.startswith('5')
-        for code in evidence.get("error_patterns", {}).get("http_errors", {}).keys()
+        code.startswith("5")
+        for code in evidence.get("error_patterns", {}).get("http_errors", {})
     )
 
     # Generate immediate actions based on severity and evidence
     if severity in ["P0", "P1"]:
         if uses_redis and has_timeouts:
-            plan["immediate_actions"].extend([
-                {
-                    "step": 1,
-                    "action": "Check Redis service status",
-                    "command": "redis-cli ping || systemctl status redis",
-                    "risk": "LOW",
-                    "estimated_time": "30 seconds",
-                    "rationale": "Verify Redis is running and responsive"
-                },
-                {
-                    "step": 2,
-                    "action": "Check Redis connection count",
-                    "command": "redis-cli info clients | grep connected_clients",
-                    "risk": "LOW",
-                    "estimated_time": "30 seconds",
-                    "rationale": "Identify if connection pool is exhausted"
-                },
-                {
-                    "step": 3,
-                    "action": "Restart application service (if safe)",
-                    "command": "systemctl restart app-service",
-                    "risk": "MEDIUM",
-                    "estimated_time": "2 minutes",
-                    "rationale": "Clear stale connections and refresh connection pool"
-                }
-            ])
+            plan["immediate_actions"].extend(
+                [
+                    {
+                        "step": 1,
+                        "action": "Check Redis service status",
+                        "command": "redis-cli ping || systemctl status redis",
+                        "risk": "LOW",
+                        "estimated_time": "30 seconds",
+                        "rationale": "Verify Redis is running and responsive",
+                    },
+                    {
+                        "step": 2,
+                        "action": "Check Redis connection count",
+                        "command": "redis-cli info clients | grep connected_clients",
+                        "risk": "LOW",
+                        "estimated_time": "30 seconds",
+                        "rationale": "Identify if connection pool is exhausted",
+                    },
+                    {
+                        "step": 3,
+                        "action": "Restart application service (if safe)",
+                        "command": "systemctl restart app-service",
+                        "risk": "MEDIUM",
+                        "estimated_time": "2 minutes",
+                        "rationale": "Clear stale connections and refresh connection pool",
+                    },
+                ]
+            )
 
         if has_http_5xx:
-            plan["immediate_actions"].append({
-                "step": len(plan["immediate_actions"]) + 1,
-                "action": "Check application logs for recent errors",
-                "command": "tail -100 /var/log/app/error.log",
-                "risk": "LOW",
-                "estimated_time": "1 minute",
-                "rationale": "Identify immediate cause of 5xx errors"
-            })
+            plan["immediate_actions"].append(
+                {
+                    "step": len(plan["immediate_actions"]) + 1,
+                    "action": "Check application logs for recent errors",
+                    "command": "tail -100 /var/log/app/error.log",
+                    "risk": "LOW",
+                    "estimated_time": "1 minute",
+                    "rationale": "Identify immediate cause of 5xx errors",
+                }
+            )
 
     # Convert LLM suggestions to short-term fixes
     for idx, suggestion in enumerate(suggestions, 1):
-        plan["short_term_fixes"].append({
-            "step": idx,
-            "action": f"Update {suggestion.get('file', 'configuration')}",
-            "file": suggestion.get("file"),
-            "diff": suggestion.get("diff"),
-            "rationale": suggestion.get("rationale"),
-            "risk": "LOW",
-            "requires_restart": True
-        })
+        plan["short_term_fixes"].append(
+            {
+                "step": idx,
+                "action": f"Update {suggestion.get('file', 'configuration')}",
+                "file": suggestion.get("file"),
+                "diff": suggestion.get("diff"),
+                "rationale": suggestion.get("rationale"),
+                "risk": "LOW",
+                "requires_restart": True,
+            }
+        )
 
     # Add standard short-term fixes based on evidence
     if uses_redis and has_timeouts:
-        plan["short_term_fixes"].extend([
-            {
-                "step": len(plan["short_term_fixes"]) + 1,
-                "action": "Increase Redis timeout",
-                "file": ".env or config file",
-                "change": "REDIS_TIMEOUT=1 → REDIS_TIMEOUT=5",
-                "rationale": "Reduce timeout errors under load",
-                "risk": "LOW"
-            },
-            {
-                "step": len(plan["short_term_fixes"]) + 1,
-                "action": "Enable Redis connection pooling",
-                "file": "app/config/redis.py",
-                "change": "Add max_connections=50, socket_timeout=5",
-                "rationale": "Prevent connection exhaustion",
-                "risk": "LOW"
-            }
-        ])
+        plan["short_term_fixes"].extend(
+            [
+                {
+                    "step": len(plan["short_term_fixes"]) + 1,
+                    "action": "Increase Redis timeout",
+                    "file": ".env or config file",
+                    "change": "REDIS_TIMEOUT=1 → REDIS_TIMEOUT=5",
+                    "rationale": "Reduce timeout errors under load",
+                    "risk": "LOW",
+                },
+                {
+                    "step": len(plan["short_term_fixes"]) + 1,
+                    "action": "Enable Redis connection pooling",
+                    "file": "app/config/redis.py",
+                    "change": "Add max_connections=50, socket_timeout=5",
+                    "rationale": "Prevent connection exhaustion",
+                    "risk": "LOW",
+                },
+            ]
+        )
 
     # Generate long-term fixes
     if uses_redis:
-        plan["long_term_fixes"].extend([
-            {
-                "action": "Implement circuit breaker pattern",
-                "estimated_effort": "2-3 days",
-                "rationale": "Prevent cascading failures when Redis is unavailable"
-            },
-            {
-                "action": "Add Redis connection monitoring",
-                "estimated_effort": "1 day",
-                "rationale": "Alert on connection pool exhaustion before it causes issues"
-            },
-            {
-                "action": "Implement Redis failover/HA setup",
-                "estimated_effort": "1 week",
-                "rationale": "Ensure Redis availability with automatic failover"
-            }
-        ])
+        plan["long_term_fixes"].extend(
+            [
+                {
+                    "action": "Implement circuit breaker pattern",
+                    "estimated_effort": "2-3 days",
+                    "rationale": "Prevent cascading failures when Redis is unavailable",
+                },
+                {
+                    "action": "Add Redis connection monitoring",
+                    "estimated_effort": "1 day",
+                    "rationale": "Alert on connection pool exhaustion before it causes issues",
+                },
+                {
+                    "action": "Implement Redis failover/HA setup",
+                    "estimated_effort": "1 week",
+                    "rationale": "Ensure Redis availability with automatic failover",
+                },
+            ]
+        )
 
     # Generate verification steps
     if severity in ["P0", "P1"]:
@@ -130,19 +140,19 @@ def generate_remediation_plan(hypothesis: str, evidence: Dict, suggestions: List
             "Monitor error rate (should drop to <5/min within 5 minutes)",
             "Check Redis connection count (should stabilize below 80% of max)",
             "Verify application response time (should return to normal)",
-            "Check for any new errors in logs"
+            "Check for any new errors in logs",
         ]
     else:
         plan["verification_steps"] = [
             "Monitor error rate over next 24 hours",
             "Review application metrics for improvements",
-            "Check logs for recurring patterns"
+            "Check logs for recurring patterns",
         ]
 
     return plan
 
 
-def format_remediation_output(plan: Dict) -> str:
+def format_remediation_output(plan: dict) -> str:
     """
     Format remediation plan as human-readable text.
 
@@ -161,7 +171,9 @@ def format_remediation_output(plan: Dict) -> str:
             output.append(f"\n{action['step']}. {action['action']}")
             if action.get("command"):
                 output.append(f"   Command: {action['command']}")
-            output.append(f"   Risk: {action['risk']} | Time: {action['estimated_time']}")
+            output.append(
+                f"   Risk: {action['risk']} | Time: {action['estimated_time']}"
+            )
             if action.get("rationale"):
                 output.append(f"   Why: {action['rationale']}")
 
@@ -175,7 +187,7 @@ def format_remediation_output(plan: Dict) -> str:
             if fix.get("change"):
                 output.append(f"   Change: {fix['change']}")
             elif fix.get("diff"):
-                output.append(f"   Diff: [See above]")
+                output.append("   Diff: [See above]")
             if fix.get("rationale"):
                 output.append(f"   Why: {fix['rationale']}")
             if fix.get("risk"):

@@ -1,5 +1,2 @@
-from typing import Dict, List
-
-
-def find_missing_env(required_keys: List[str], env: Dict[str, str]) -> List[str]:
+def find_missing_env(required_keys: list[str], env: dict[str, str]) -> list[str]:
     return [k for k in required_keys if k not in env]

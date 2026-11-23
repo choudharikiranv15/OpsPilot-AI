@@ -1,5 +1,5 @@
-from typing import Dict
 import json
+
 from opspilot.utils.llm import call_llama, safe_json_parse
 
 SYSTEM_PROMPT = """
@@ -24,25 +24,28 @@ Format:
 """
 
 
-def verify(hypothesis: str, evidence: Dict) -> Dict:
-    prompt = SYSTEM_PROMPT + f"""
+def verify(hypothesis: str, evidence: dict) -> dict:
+    prompt = (
+        SYSTEM_PROMPT
+        + f"""
 HYPOTHESIS:
 {hypothesis}
 
 EVIDENCE:
 {json.dumps(evidence, indent=2)}
 """
+    )
 
     try:
         # Use multi-provider LLM system with automatic fallback
         raw_output = call_llama(prompt, timeout=120)
 
         if not raw_output:
-            print(f"[ERROR] Verifier LLM returned empty response")
+            print("[ERROR] Verifier LLM returned empty response")
             return {
                 "supported": False,
                 "confidence": 0.0,
-                "reason": "LLM verification failed"
+                "reason": "LLM verification failed",
             }
 
         # Parse JSON response using safe parser
@@ -55,7 +58,7 @@ EVIDENCE:
             return {
                 "supported": False,
                 "confidence": 0.0,
-                "reason": "Unable to verify hypothesis"
+                "reason": "Unable to verify hypothesis",
             }
 
     except Exception as e:
@@ -63,5 +66,5 @@ EVIDENCE:
         return {
             "supported": False,
             "confidence": 0.0,
-            "reason": f"Verification error: {str(e)}"
+            "reason": f"Verification error: {str(e)}",
         }

@@ -1,10 +1,10 @@
 """Context gathering modules for OpsPilot."""
 
-from opspilot.context.project import scan_project_tree
-from opspilot.context.logs import read_logs
-from opspilot.context.env import read_env
-from opspilot.context.docker import read_docker_files
 from opspilot.context.deps import read_dependencies
+from opspilot.context.docker import read_docker_files
+from opspilot.context.env import read_env
+from opspilot.context.logs import read_logs
+from opspilot.context.project import scan_project_tree
 
 
 def collect_context(project_root: str) -> dict:

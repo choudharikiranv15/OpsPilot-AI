@@ -18,6 +18,7 @@ class OpsPilotError(Exception):
 # LLM-related exceptions
 class LLMError(OpsPilotError):
     """Base exception for LLM-related errors."""
+
     pass
 
 
@@ -27,7 +28,11 @@ class LLMProviderUnavailableError(LLMError):
     def __init__(self, providers_tried: list = None):
         self.providers_tried = providers_tried or []
         message = "No LLM provider available"
-        details = f"Tried: {', '.join(self.providers_tried)}" if self.providers_tried else None
+        details = (
+            f"Tried: {', '.join(self.providers_tried)}"
+            if self.providers_tried
+            else None
+        )
         super().__init__(message, details)
 
 
@@ -38,8 +43,7 @@ class LLMTimeoutError(LLMError):
         self.provider = provider
         self.timeout = timeout
         super().__init__(
-            f"LLM call timed out",
-            f"Provider: {provider}, Timeout: {timeout}s"
+            "LLM call timed out", f"Provider: {provider}, Timeout: {timeout}s"
         )
 
 
@@ -49,10 +53,7 @@ class LLMResponseError(LLMError):
     def __init__(self, provider: str, reason: str):
         self.provider = provider
         self.reason = reason
-        super().__init__(
-            f"Invalid LLM response from {provider}",
-            reason
-        )
+        super().__init__(f"Invalid LLM response from {provider}", reason)
 
 
 class LLMParseError(LLMError):
@@ -62,7 +63,7 @@ class LLMParseError(LLMError):
         self.raw_response = raw_response[:200] if raw_response else None
         super().__init__(
             "Failed to parse LLM response as JSON",
-            f"Response preview: {self.raw_response}..." if self.raw_response else None
+            f"Response preview: {self.raw_response}..." if self.raw_response else None,
         )
 
 
@@ -79,6 +80,7 @@ class LLMRateLimitError(LLMError):
 # Context collection exceptions
 class ContextCollectionError(OpsPilotError):
     """Base exception for context collection errors."""
+
     pass
 
 
@@ -112,6 +114,7 @@ class EnvironmentReadError(ContextCollectionError):
 # Analysis exceptions
 class AnalysisError(OpsPilotError):
     """Base exception for analysis errors."""
+
     pass
 
 
@@ -121,7 +124,11 @@ class InsufficientEvidenceError(AnalysisError):
     def __init__(self, missing_context: list = None):
         self.missing_context = missing_context or []
         message = "Insufficient evidence for analysis"
-        details = f"Missing: {', '.join(self.missing_context)}" if self.missing_context else None
+        details = (
+            f"Missing: {', '.join(self.missing_context)}"
+            if self.missing_context
+            else None
+        )
         super().__init__(message, details)
 
 
@@ -139,12 +146,13 @@ class VerificationError(AnalysisError):
     def __init__(self, hypothesis: str, reason: str):
         self.hypothesis = hypothesis
         self.reason = reason
-        super().__init__(f"Failed to verify hypothesis", reason)
+        super().__init__("Failed to verify hypothesis", reason)
 
 
 # Configuration exceptions
 class ConfigurationError(OpsPilotError):
     """Base exception for configuration errors."""
+
     pass
 
 
@@ -168,6 +176,7 @@ class MissingConfigError(ConfigurationError):
 # Memory/storage exceptions (named StorageError to avoid shadowing Python's built-in MemoryError)
 class StorageError(OpsPilotError):
     """Base exception for memory/storage errors."""
+
     pass
 
 
@@ -178,10 +187,7 @@ class RedisConnectionError(StorageError):
         self.host = host
         self.port = port
         self.reason = reason
-        super().__init__(
-            f"Failed to connect to Redis at {host}:{port}",
-            reason
-        )
+        super().__init__(f"Failed to connect to Redis at {host}:{port}", reason)
 
 
 class MemoryWriteError(StorageError):

@@ -1,13 +1,15 @@
 """Unit tests for production log fetching."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock, MagicMock
+
 from opspilot.context.production_logs import (
+    auto_detect_and_fetch,
     fetch_logs_from_file,
-    fetch_logs_from_url,
-    fetch_logs_from_s3,
     fetch_logs_from_kubectl,
-    auto_detect_and_fetch
+    fetch_logs_from_s3,
+    fetch_logs_from_url,
 )
 
 
@@ -32,7 +34,7 @@ class TestLocalFileLogFetching:
 class TestURLLogFetching:
     """Test HTTP/HTTPS log fetching."""
 
-    @patch('opspilot.context.production_logs.requests.get')
+    @patch("opspilot.context.production_logs.requests.get")
     def test_fetch_from_url_success(self, mock_get):
         """Test successful URL log fetch."""
         mock_response = Mock()
@@ -44,7 +46,7 @@ class TestURLLogFetching:
         assert result == "ERROR: Production error"
         mock_get.assert_called_once()
 
-    @patch('opspilot.context.production_logs.requests.get')
+    @patch("opspilot.context.production_logs.requests.get")
     def test_fetch_from_url_failure(self, mock_get):
         """Test URL fetch failure."""
         mock_get.side_effect = Exception("Connection failed")
@@ -56,7 +58,7 @@ class TestURLLogFetching:
 class TestS3LogFetching:
     """Test S3 log fetching."""
 
-    @patch('opspilot.context.production_logs.subprocess.run')
+    @patch("opspilot.context.production_logs.subprocess.run")
     def test_fetch_from_s3_success(self, mock_run):
         """Test successful S3 log fetch."""
         mock_result = Mock()
@@ -67,7 +69,7 @@ class TestS3LogFetching:
         result = fetch_logs_from_s3("my-bucket", "logs/app.log")
         assert result == "S3 log content"
 
-    @patch('opspilot.context.production_logs.subprocess.run')
+    @patch("opspilot.context.production_logs.subprocess.run")
     def test_fetch_from_s3_failure(self, mock_run):
         """Test S3 fetch failure."""
         mock_result = Mock()
@@ -82,7 +84,7 @@ class TestS3LogFetching:
 class TestKubernetesLogFetching:
     """Test Kubernetes log fetching."""
 
-    @patch('opspilot.context.production_logs.subprocess.run')
+    @patch("opspilot.context.production_logs.subprocess.run")
     def test_fetch_kubectl_logs_success(self, mock_run):
         """Test successful kubectl log fetch."""
         mock_result = Mock()
@@ -93,7 +95,7 @@ class TestKubernetesLogFetching:
         result = fetch_logs_from_kubectl("production", "api-server")
         assert result == "Pod log content"
 
-    @patch('opspilot.context.production_logs.subprocess.run')
+    @patch("opspilot.context.production_logs.subprocess.run")
     def test_fetch_kubectl_logs_with_container(self, mock_run):
         """Test kubectl log fetch with container name."""
         mock_result = Mock()
@@ -108,7 +110,7 @@ class TestKubernetesLogFetching:
 class TestAutoDetection:
     """Test automatic log source detection."""
 
-    @patch('opspilot.context.production_logs.fetch_logs_from_url')
+    @patch("opspilot.context.production_logs.fetch_logs_from_url")
     def test_auto_detect_https_url(self, mock_fetch):
         """Test auto-detection of HTTPS URL."""
         mock_fetch.return_value = "URL logs"
@@ -117,7 +119,7 @@ class TestAutoDetection:
         assert result == "URL logs"
         mock_fetch.assert_called_once()
 
-    @patch('opspilot.context.production_logs.fetch_logs_from_s3')
+    @patch("opspilot.context.production_logs.fetch_logs_from_s3")
     def test_auto_detect_s3_path(self, mock_fetch):
         """Test auto-detection of S3 path."""
         mock_fetch.return_value = "S3 logs"
@@ -126,7 +128,7 @@ class TestAutoDetection:
         assert result == "S3 logs"
         mock_fetch.assert_called_with("my-bucket", "logs/app.log")
 
-    @patch('opspilot.context.production_logs.fetch_logs_from_kubectl')
+    @patch("opspilot.context.production_logs.fetch_logs_from_kubectl")
     def test_auto_detect_kubernetes_path(self, mock_fetch):
         """Test auto-detection of Kubernetes path."""
         mock_fetch.return_value = "K8s logs"
@@ -135,7 +137,7 @@ class TestAutoDetection:
         assert result == "K8s logs"
         mock_fetch.assert_called_with("production", "api-server")
 
-    @patch('opspilot.context.production_logs.fetch_logs_from_file')
+    @patch("opspilot.context.production_logs.fetch_logs_from_file")
     def test_auto_detect_local_file(self, mock_fetch):
         """Test auto-detection of local file path."""
         mock_fetch.return_value = "Local logs"
@@ -144,5 +146,5 @@ class TestAutoDetection:
         assert result == "Local logs"
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

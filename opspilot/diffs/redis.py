@@ -7,8 +7,9 @@ def redis_timeout_diff():
 -REDIS_TIMEOUT=1
 +REDIS_TIMEOUT=5
 """,
-        "rationale": "Increase Redis timeout to reduce transient timeout errors under load."
+        "rationale": "Increase Redis timeout to reduce transient timeout errors under load.",
     }
+
 
 def redis_pooling_diff():
     return {
@@ -19,5 +20,5 @@ def redis_pooling_diff():
 -redis.Redis(host=host, port=port)
 +redis.Redis(host=host, port=port, socket_timeout=5, max_connections=20)
 """,
-        "rationale": "Enable connection pooling and reasonable timeouts to improve reliability."
+        "rationale": "Enable connection pooling and reasonable timeouts to improve reliability.",
     }

@@ -1,12 +1,12 @@
 """Production log fetching from various sources."""
 
-import requests
-from pathlib import Path
-from typing import Optional, List
 import subprocess
+from pathlib import Path
+
+import requests
 
 
-def fetch_logs_from_url(url: str, timeout: int = 30) -> Optional[str]:
+def fetch_logs_from_url(url: str, timeout: int = 30) -> str | None:
     """
     Fetch logs from HTTP/HTTPS URL.
 
@@ -26,7 +26,7 @@ def fetch_logs_from_url(url: str, timeout: int = 30) -> Optional[str]:
         return None
 
 
-def fetch_logs_from_s3(bucket: str, key: str, profile: Optional[str] = None) -> Optional[str]:
+def fetch_logs_from_s3(bucket: str, key: str, profile: str | None = None) -> str | None:
     """
     Fetch logs from S3 bucket using AWS CLI.
 
@@ -44,12 +44,7 @@ def fetch_logs_from_s3(bucket: str, key: str, profile: Optional[str] = None) -> 
         if profile:
             cmd.extend(["--profile", profile])
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
         if result.returncode == 0:
             return result.stdout
@@ -65,7 +60,7 @@ def fetch_logs_from_s3(bucket: str, key: str, profile: Optional[str] = None) -> 
         return None
 
 
-def fetch_logs_from_file(path: str) -> Optional[str]:
+def fetch_logs_from_file(path: str) -> str | None:
     """
     Read logs from local file.
 
@@ -87,8 +82,9 @@ def fetch_logs_from_file(path: str) -> Optional[str]:
         return None
 
 
-def fetch_logs_from_kubectl(namespace: str, pod: str, container: Optional[str] = None,
-                            tail: int = 1000) -> Optional[str]:
+def fetch_logs_from_kubectl(
+    namespace: str, pod: str, container: str | None = None, tail: int = 1000
+) -> str | None:
     """
     Fetch logs from Kubernetes pod using kubectl.
 
@@ -107,12 +103,7 @@ def fetch_logs_from_kubectl(namespace: str, pod: str, container: Optional[str] =
         if container:
             cmd.extend(["-c", container])
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
             return result.stdout
@@ -124,13 +115,15 @@ def fetch_logs_from_kubectl(namespace: str, pod: str, container: Optional[str] =
         print(f"kubectl logs fetch timed out for {namespace}/{pod}")
         return None
     except FileNotFoundError:
-        print("kubectl not found. Install from: https://kubernetes.io/docs/tasks/tools/")
+        print(
+            "kubectl not found. Install from: https://kubernetes.io/docs/tasks/tools/"
+        )
         return None
 
 
-def fetch_logs_from_cloudwatch(log_group: str, log_stream: str,
-                                profile: Optional[str] = None,
-                                limit: int = 1000) -> Optional[str]:
+def fetch_logs_from_cloudwatch(
+    log_group: str, log_stream: str, profile: str | None = None, limit: int = 1000
+) -> str | None:
     """
     Fetch logs from AWS CloudWatch using AWS CLI.
 
@@ -145,23 +138,25 @@ def fetch_logs_from_cloudwatch(log_group: str, log_stream: str,
     """
     try:
         cmd = [
-            "aws", "logs", "get-log-events",
-            "--log-group-name", log_group,
-            "--log-stream-name", log_stream,
-            "--limit", str(limit),
-            "--output", "text",
-            "--query", "events[*].message"
+            "aws",
+            "logs",
+            "get-log-events",
+            "--log-group-name",
+            log_group,
+            "--log-stream-name",
+            log_stream,
+            "--limit",
+            str(limit),
+            "--output",
+            "text",
+            "--query",
+            "events[*].message",
         ]
 
         if profile:
             cmd.extend(["--profile", profile])
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
         if result.returncode == 0:
             return result.stdout
@@ -177,7 +172,7 @@ def fetch_logs_from_cloudwatch(log_group: str, log_stream: str,
         return None
 
 
-def auto_detect_and_fetch(source: str) -> Optional[str]:
+def auto_detect_and_fetch(source: str) -> str | None:
     """
     Auto-detect log source type and fetch accordingly.
 
@@ -236,7 +231,7 @@ def auto_detect_and_fetch(source: str) -> Optional[str]:
     return fetch_logs_from_file(source)
 
 
-def fetch_multiple_sources(sources: List[str]) -> str:
+def fetch_multiple_sources(sources: list[str]) -> str:
     """
     Fetch logs from multiple sources and concatenate.
 
@@ -252,9 +247,9 @@ def fetch_multiple_sources(sources: List[str]) -> str:
         print(f"Fetching logs from: {source}")
         logs = auto_detect_and_fetch(source)
         if logs:
-            all_logs.append(f"\n{'='*60}\n")
+            all_logs.append(f"\n{'=' * 60}\n")
             all_logs.append(f"SOURCE: {source}\n")
-            all_logs.append(f"{'='*60}\n")
+            all_logs.append(f"{'=' * 60}\n")
             all_logs.append(logs)
         else:
             print(f"Warning: Could not fetch logs from {source}")

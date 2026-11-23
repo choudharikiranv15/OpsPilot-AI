@@ -7,17 +7,17 @@ multi-provider LLM system with automatic fallback.
 # Import from new multi-provider system
 from opspilot.utils.llm_providers import (
     call_llama,
-    safe_json_parse,
-    check_ollama_available,
     check_any_llm_available,
-    get_llm_router
+    check_ollama_available,
+    get_llm_router,
+    safe_json_parse,
 )
 
 # Re-export for backward compatibility
 __all__ = [
-    'call_llama',
-    'safe_json_parse',
-    'check_ollama_available',
-    'check_any_llm_available',
-    'get_llm_router'
+    "call_llama",
+    "safe_json_parse",
+    "check_ollama_available",
+    "check_any_llm_available",
+    "get_llm_router",
 ]

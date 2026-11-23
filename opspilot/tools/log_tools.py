@@ -1,9 +1,8 @@
-from collections import Counter
 import re
-from typing import Dict
+from collections import Counter
 
 
-def analyze_log_errors(log_text: str) -> Dict[str, int]:
+def analyze_log_errors(log_text: str) -> dict[str, int]:
     if not log_text:
         return {}
 

@@ -2,11 +2,11 @@
 
 import subprocess
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-from pathlib import Path
 
 
-def get_recent_commits(repo_path: str, since_hours: int = 24, limit: int = 20) -> List[Dict]:
+def get_recent_commits(
+    repo_path: str, since_hours: int = 24, limit: int = 20
+) -> list[dict]:
     """
     Get recent Git commits with metadata.
 
@@ -24,18 +24,16 @@ def get_recent_commits(repo_path: str, since_hours: int = 24, limit: int = 20) -
 
         # Git log format: hash|author|date|subject
         cmd = [
-            "git", "-C", repo_path, "log",
+            "git",
+            "-C",
+            repo_path,
+            "log",
             f"--since={since_str}",
             f"-{limit}",
-            "--pretty=format:%H|%an|%ai|%s"
+            "--pretty=format:%H|%an|%ai|%s",
         ]
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
         if result.returncode != 0:
             print(f"Git log failed: {result.stderr}")
@@ -48,12 +46,14 @@ def get_recent_commits(repo_path: str, since_hours: int = 24, limit: int = 20) -
 
             parts = line.split("|", 3)
             if len(parts) == 4:
-                commits.append({
-                    "hash": parts[0][:8],  # Short hash
-                    "author": parts[1],
-                    "date": parts[2],
-                    "message": parts[3]
-                })
+                commits.append(
+                    {
+                        "hash": parts[0][:8],  # Short hash
+                        "author": parts[1],
+                        "date": parts[2],
+                        "message": parts[3],
+                    }
+                )
 
         return commits
 
@@ -68,7 +68,7 @@ def get_recent_commits(repo_path: str, since_hours: int = 24, limit: int = 20) -
         return []
 
 
-def get_changed_files(repo_path: str, commit_hash: str) -> List[str]:
+def get_changed_files(repo_path: str, commit_hash: str) -> list[str]:
     """
     Get list of files changed in a specific commit.
 
@@ -81,17 +81,17 @@ def get_changed_files(repo_path: str, commit_hash: str) -> List[str]:
     """
     try:
         cmd = [
-            "git", "-C", repo_path, "diff-tree",
-            "--no-commit-id", "--name-only", "-r",
-            commit_hash
+            "git",
+            "-C",
+            repo_path,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            commit_hash,
         ]
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
         if result.returncode == 0:
             return [f.strip() for f in result.stdout.split("\n") if f.strip()]
@@ -102,7 +102,7 @@ def get_changed_files(repo_path: str, commit_hash: str) -> List[str]:
         return []
 
 
-def correlate_with_error_timeline(commits: List[Dict], error_first_seen: str) -> Dict:
+def correlate_with_error_timeline(commits: list[dict], error_first_seen: str) -> dict:
     """
     Correlate commits with error timeline.
 
@@ -126,20 +126,24 @@ def correlate_with_error_timeline(commits: List[Dict], error_first_seen: str) ->
                 continue
 
         if not error_time:
-            return {"correlation": "unknown", "reason": "Could not parse error timestamp"}
+            return {
+                "correlation": "unknown",
+                "reason": "Could not parse error timestamp",
+            }
 
         # Find commits within ±2 hours of error
         suspicious_commits = []
         for commit in commits:
             try:
-                commit_time = datetime.strptime(commit["date"][:19], "%Y-%m-%d %H:%M:%S")
+                commit_time = datetime.strptime(
+                    commit["date"][:19], "%Y-%m-%d %H:%M:%S"
+                )
                 time_diff = abs((commit_time - error_time).total_seconds() / 3600)
 
                 if time_diff <= 2:
-                    suspicious_commits.append({
-                        **commit,
-                        "time_diff_hours": round(time_diff, 1)
-                    })
+                    suspicious_commits.append(
+                        {**commit, "time_diff_hours": round(time_diff, 1)}
+                    )
             except ValueError:
                 continue
 
@@ -148,19 +152,19 @@ def correlate_with_error_timeline(commits: List[Dict], error_first_seen: str) ->
                 "correlation": "strong",
                 "suspicious_commits": suspicious_commits,
                 "count": len(suspicious_commits),
-                "reason": f"Found {len(suspicious_commits)} commits within 2 hours of error"
+                "reason": f"Found {len(suspicious_commits)} commits within 2 hours of error",
             }
         else:
             return {
                 "correlation": "weak",
-                "reason": "No commits near error occurrence time"
+                "reason": "No commits near error occurrence time",
             }
 
     except Exception as e:
         return {"correlation": "error", "reason": str(e)}
 
 
-def analyze_deployment_impact(repo_path: str, since_hours: int = 24) -> Dict:
+def analyze_deployment_impact(repo_path: str, since_hours: int = 24) -> dict:
     """
     Analyze recent deployments and their potential impact.
 
@@ -178,7 +182,7 @@ def analyze_deployment_impact(repo_path: str, since_hours: int = 24) -> Dict:
             "has_recent_changes": False,
             "commits": [],
             "risk_level": "LOW",
-            "reason": f"No commits in the last {since_hours} hours"
+            "reason": f"No commits in the last {since_hours} hours",
         }
 
     # Categorize changed files
@@ -200,11 +204,23 @@ def analyze_deployment_impact(repo_path: str, since_hours: int = 24) -> Dict:
 
             # Database migrations
             if "migration" in file_lower or "schema" in file_lower:
-                high_risk_files.append({"file": file, "commit": commit["hash"], "reason": "Database change"})
+                high_risk_files.append(
+                    {
+                        "file": file,
+                        "commit": commit["hash"],
+                        "reason": "Database change",
+                    }
+                )
 
             # Critical services
             if any(x in file_lower for x in ["auth", "payment", "api", "gateway"]):
-                high_risk_files.append({"file": file, "commit": commit["hash"], "reason": "Critical service"})
+                high_risk_files.append(
+                    {
+                        "file": file,
+                        "commit": commit["hash"],
+                        "reason": "Critical service",
+                    }
+                )
 
     # Assess risk level
     if high_risk_files:
@@ -228,11 +244,13 @@ def analyze_deployment_impact(repo_path: str, since_hours: int = 24) -> Dict:
         "high_risk_files": high_risk_files,
         "config_files": config_files,
         "risk_level": risk_level,
-        "reason": reason
+        "reason": reason,
     }
 
 
-def get_blame_for_error(repo_path: str, file_path: str, line_number: int) -> Optional[Dict]:
+def get_blame_for_error(
+    repo_path: str, file_path: str, line_number: int
+) -> dict | None:
     """
     Get Git blame information for a specific line.
 
@@ -246,18 +264,17 @@ def get_blame_for_error(repo_path: str, file_path: str, line_number: int) -> Opt
     """
     try:
         cmd = [
-            "git", "-C", repo_path, "blame",
-            "-L", f"{line_number},{line_number}",
+            "git",
+            "-C",
+            repo_path,
+            "blame",
+            "-L",
+            f"{line_number},{line_number}",
             "--porcelain",
-            file_path
+            file_path,
         ]
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
         if result.returncode != 0:
             return None
@@ -281,7 +298,9 @@ def get_blame_for_error(repo_path: str, file_path: str, line_number: int) -> Opt
             elif line.startswith("author-time "):
                 try:
                     timestamp = int(line[12:])
-                    date = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+                    date = datetime.fromtimestamp(timestamp).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
                 except ValueError:
                     pass
 
@@ -290,14 +309,14 @@ def get_blame_for_error(repo_path: str, file_path: str, line_number: int) -> Opt
             "author": author,
             "date": date,
             "file": file_path,
-            "line": line_number
+            "line": line_number,
         }
 
     except Exception:
         return None
 
 
-def format_deployment_analysis(analysis: Dict) -> str:
+def format_deployment_analysis(analysis: dict) -> str:
     """
     Format deployment analysis as human-readable text.
 
@@ -317,11 +336,6 @@ def format_deployment_analysis(analysis: Dict) -> str:
     output.append("=" * 60)
 
     risk_level = analysis.get("risk_level", "UNKNOWN")
-    risk_color_map = {
-        "HIGH": "RED",
-        "MEDIUM": "YELLOW",
-        "LOW": "GREEN"
-    }
 
     output.append(f"\nRisk Level: {risk_level}")
     output.append(f"Reason: {analysis.get('reason', 'N/A')}")
@@ -339,7 +353,7 @@ def format_deployment_analysis(analysis: Dict) -> str:
             output.append(f"  - {item['file']} [{item['commit']}]")
 
     if analysis.get("commits"):
-        output.append(f"\nRecent Commits:")
+        output.append("\nRecent Commits:")
         for commit in analysis["commits"][:5]:
             output.append(f"  [{commit['hash']}] {commit['message']}")
             output.append(f"    by {commit['author']} at {commit['date']}")

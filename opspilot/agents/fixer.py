@@ -1,7 +1,6 @@
-from typing import Dict
 import json
-from opspilot.utils.llm import call_llama, safe_json_parse
 
+from opspilot.utils.llm import call_llama, safe_json_parse
 
 SYSTEM_PROMPT = """
 You are a senior engineer generating SAFE, DRY-RUN fix suggestions.
@@ -28,8 +27,10 @@ Return ONLY JSON. No text before or after.
 """
 
 
-def suggest(hypothesis: str, evidence: Dict) -> Dict:
-    prompt = SYSTEM_PROMPT + f"""
+def suggest(hypothesis: str, evidence: dict) -> dict:
+    prompt = (
+        SYSTEM_PROMPT
+        + f"""
 
 HYPOTHESIS:
 {hypothesis}
@@ -37,6 +38,7 @@ HYPOTHESIS:
 EVIDENCE:
 {json.dumps(evidence, indent=2)}
 """
+    )
 
     try:
         raw_output = call_llama(prompt)

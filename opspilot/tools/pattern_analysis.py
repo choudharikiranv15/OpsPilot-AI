@@ -1,11 +1,10 @@
 """Production error pattern recognition."""
 
 import re
-from typing import Dict, List
 from collections import Counter
 
 
-def identify_error_patterns(logs: str) -> Dict:
+def identify_error_patterns(logs: str) -> dict:
     """
     Identify common production error patterns.
 
@@ -24,7 +23,7 @@ def identify_error_patterns(logs: str) -> Dict:
         "database_errors": _extract_database_errors(logs),
         "timeout_errors": _extract_timeout_errors(logs),
         "memory_errors": _extract_memory_errors(logs),
-        "stack_traces": _extract_stack_traces(logs)
+        "stack_traces": _extract_stack_traces(logs),
     }
 
     # Add severity assessment
@@ -34,19 +33,19 @@ def identify_error_patterns(logs: str) -> Dict:
     return {k: v for k, v in patterns.items() if v}
 
 
-def _extract_http_errors(logs: str) -> Dict[str, int]:
+def _extract_http_errors(logs: str) -> dict[str, int]:
     """Extract HTTP error codes (4xx, 5xx)."""
-    http_pattern = r'\b(4\d{2}|5\d{2})\b'
+    http_pattern = r"\b(4\d{2}|5\d{2})\b"
     codes = re.findall(http_pattern, logs)
     return dict(Counter(codes)) if codes else {}
 
 
-def _extract_exceptions(logs: str) -> List[str]:
+def _extract_exceptions(logs: str) -> list[str]:
     """Extract exception types."""
     exception_patterns = [
-        r'(\w+Exception):',
-        r'(\w+Error):',
-        r'Traceback.*?(\w+Error)',
+        r"(\w+Exception):",
+        r"(\w+Error):",
+        r"Traceback.*?(\w+Error)",
     ]
 
     exceptions = []
@@ -58,14 +57,16 @@ def _extract_exceptions(logs: str) -> List[str]:
     return list(set(exceptions))[:10]
 
 
-def _extract_database_errors(logs: str) -> List[str]:
+def _extract_database_errors(logs: str) -> list[str]:
     """Extract database-related errors."""
-    driver_pattern = r'(psycopg2\.\w+|redis\.exceptions\.\w+|mysql\.connector\.\w+|pymongo\.\w+)'
+    driver_pattern = (
+        r"(psycopg2\.\w+|redis\.exceptions\.\w+|mysql\.connector\.\w+|pymongo\.\w+)"
+    )
     generic_patterns = [
-        r'(connection refused|connection timeout|connection lost)',
-        r'(deadlock|lock timeout)',
-        r'(too many connections)',
-        r'(database.*?error)',
+        r"(connection refused|connection timeout|connection lost)",
+        r"(deadlock|lock timeout)",
+        r"(too many connections)",
+        r"(database.*?error)",
     ]
 
     db_errors = []
@@ -85,18 +86,18 @@ def _extract_database_errors(logs: str) -> List[str]:
 
 def _extract_timeout_errors(logs: str) -> int:
     """Count timeout-related errors."""
-    timeout_pattern = r'timeout|timed out|time out'
+    timeout_pattern = r"timeout|timed out|time out"
     return len(re.findall(timeout_pattern, logs, re.IGNORECASE))
 
 
-def _extract_memory_errors(logs: str) -> List[str]:
+def _extract_memory_errors(logs: str) -> list[str]:
     """Extract memory-related errors."""
     memory_patterns = [
-        r'OutOfMemoryError',
-        r'MemoryError',
-        r'out of memory',
-        r'OOM',
-        r'memory limit exceeded'
+        r"OutOfMemoryError",
+        r"MemoryError",
+        r"out of memory",
+        r"OOM",
+        r"memory limit exceeded",
     ]
 
     memory_errors = []
@@ -110,9 +111,9 @@ def _extract_memory_errors(logs: str) -> List[str]:
 def _extract_stack_traces(logs: str) -> int:
     """Count stack traces."""
     trace_patterns = [
-        r'Traceback \(most recent call last\)',
-        r'at \w+\.\w+\(',
-        r'^\s+at .*\(.*:\d+\)',
+        r"Traceback \(most recent call last\)",
+        r"at \w+\.\w+\(",
+        r"^\s+at .*\(.*:\d+\)",
     ]
 
     count = 0
@@ -122,7 +123,7 @@ def _extract_stack_traces(logs: str) -> int:
     return count
 
 
-def _assess_severity(patterns: Dict) -> str:
+def _assess_severity(patterns: dict) -> str:
     """
     Assess overall severity based on error patterns.
 
@@ -132,8 +133,9 @@ def _assess_severity(patterns: Dict) -> str:
     P3 = Low (minor issues)
     """
     http_5xx = sum(
-        count for code, count in patterns.get("http_errors", {}).items()
-        if code.startswith('5')
+        count
+        for code, count in patterns.get("http_errors", {}).items()
+        if code.startswith("5")
     )
     memory_errors = len(patterns.get("memory_errors", []))
     timeout_count = patterns.get("timeout_errors", 0)
@@ -155,7 +157,7 @@ def _assess_severity(patterns: Dict) -> str:
     return "P3"
 
 
-def _count_total_errors(patterns: Dict) -> int:
+def _count_total_errors(patterns: dict) -> int:
     """Count total errors across all patterns."""
     count = 0
 
@@ -177,7 +179,7 @@ def _count_total_errors(patterns: Dict) -> int:
     return count
 
 
-def build_error_timeline(logs: str) -> Dict:
+def build_error_timeline(logs: str) -> dict:
     """
     Build a timeline of when errors occurred.
 
@@ -188,7 +190,7 @@ def build_error_timeline(logs: str) -> Dict:
         Timeline information including first/last seen, occurrences
     """
     # Extract timestamps (ISO format or common log formats)
-    timestamp_pattern = r'(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2})'
+    timestamp_pattern = r"(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2})"
     timestamps = re.findall(timestamp_pattern, logs)
 
     if not timestamps:
@@ -201,5 +203,7 @@ def build_error_timeline(logs: str) -> Dict:
         "first_seen": timestamps[0] if timestamps else "unknown",
         "last_seen": timestamps[-1] if timestamps else "unknown",
         "total_occurrences": len(timestamps),
-        "time_range": f"{timestamps[0]} to {timestamps[-1]}" if len(timestamps) > 1 else "single occurrence"
+        "time_range": f"{timestamps[0]} to {timestamps[-1]}"
+        if len(timestamps) > 1
+        else "single occurrence",
     }
