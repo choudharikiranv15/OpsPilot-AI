@@ -56,15 +56,6 @@ REDIS_MAX_SIMILAR_ISSUES = 10
 MEMORY_MAX_ENTRIES = 100
 MEMORY_SIMILARITY_THRESHOLD = 0.7
 
-# Log file patterns
-LOG_FILE_PATTERNS = [
-    "*.log",
-    "*.log.*",
-    "*.txt",
-    "*.log.json",
-    "*.jsonl",
-]
-
 # Supported dependency files
 DEPENDENCY_FILES = {
     "python": ["requirements.txt", "Pipfile", "pyproject.toml", "setup.py"],

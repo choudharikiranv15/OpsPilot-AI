@@ -1,150 +1,163 @@
-"""Unit tests for production log fetching."""
+"""Tests for explicit log sources (--log-source)."""
 
+from __future__ import annotations
+
+import subprocess
+import sys
 from unittest.mock import Mock, patch
 
 import pytest
+import requests
 
+from opspilot.context import production_logs as pl
 from opspilot.context.production_logs import (
+    LogSourceError,
     auto_detect_and_fetch,
     fetch_logs_from_file,
-    fetch_logs_from_kubectl,
-    fetch_logs_from_s3,
-    fetch_logs_from_url,
+    parse_cloudwatch_source,
 )
 
 
-class TestLocalFileLogFetching:
-    """Test local file log reading."""
+class TestFileSource:
+    def test_reads_file(self, tmp_path):
+        path = tmp_path / "service.out"
+        path.write_bytes(b"ERROR: boom\n")
+        assert fetch_logs_from_file(str(path)) == "ERROR: boom\n"
 
-    def test_read_existing_file(self, tmp_path):
-        """Test reading logs from existing file."""
-        log_file = tmp_path / "test.log"
-        log_content = "ERROR: Test error\nWARNING: Test warning"
-        log_file.write_text(log_content)
+    def test_missing_file_raises(self, tmp_path):
+        with pytest.raises(LogSourceError, match="not found"):
+            fetch_logs_from_file(str(tmp_path / "missing.log"))
 
-        result = fetch_logs_from_file(str(log_file))
-        assert result == log_content
-
-    def test_read_nonexistent_file(self):
-        """Test reading from non-existent file."""
-        result = fetch_logs_from_file("/nonexistent/path/file.log")
-        assert result is None
+    def test_large_file_is_tail_bounded(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(pl, "MAX_FETCH_BYTES", 100)
+        path = tmp_path / "big.log"
+        path.write_text("".join(f"line {i}\n" for i in range(1000)), encoding="utf-8")
+        text = fetch_logs_from_file(str(path))
+        assert len(text) <= 100
+        assert text.rstrip().endswith("line 999")
 
 
-class TestURLLogFetching:
-    """Test HTTP/HTTPS log fetching."""
+class TestUrlSource:
+    @patch("opspilot.context.production_logs.requests.get")
+    def test_fetch_success_keeps_tail(self, mock_get, monkeypatch):
+        monkeypatch.setattr(pl, "MAX_FETCH_BYTES", 10)
+        response = Mock()
+        response.iter_content.return_value = [b"0123456789", b"abcdefghij"]
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        mock_get.return_value = response
+        assert auto_detect_and_fetch("https://logs.example/app.log") == "abcdefghij"
+        assert mock_get.call_args.kwargs["stream"] is True
 
     @patch("opspilot.context.production_logs.requests.get")
-    def test_fetch_from_url_success(self, mock_get):
-        """Test successful URL log fetch."""
-        mock_response = Mock()
-        mock_response.text = "ERROR: Production error"
-        mock_response.raise_for_status = Mock()
-        mock_get.return_value = mock_response
-
-        result = fetch_logs_from_url("https://example.com/logs/app.log")
-        assert result == "ERROR: Production error"
-        mock_get.assert_called_once()
-
-    @patch("opspilot.context.production_logs.requests.get")
-    def test_fetch_from_url_failure(self, mock_get):
-        """Test URL fetch failure."""
-        mock_get.side_effect = Exception("Connection failed")
-
-        result = fetch_logs_from_url("https://example.com/logs/app.log")
-        assert result is None
+    def test_fetch_failure_raises(self, mock_get):
+        mock_get.side_effect = requests.ConnectionError("down")
+        with pytest.raises(LogSourceError, match="Failed to fetch"):
+            auto_detect_and_fetch("https://logs.example/app.log")
 
 
-class TestS3LogFetching:
-    """Test S3 log fetching."""
+class TestSourceValidation:
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "k8s://prod/--kubeconfig=/tmp/x",
+            "k8s://Prod_NS/pod",
+            "k8s://prod",
+            "s3://-bucket/key",
+            "s3://bucket/--recursive",
+            "cw://-group::stream",
+            "cw://group::-stream",
+            "cw://onlygroup",
+        ],
+    )
+    def test_rejects_unsafe_or_malformed_identifiers(self, source):
+        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+            with pytest.raises(LogSourceError):
+                auto_detect_and_fetch(source)
+            popen.assert_not_called()
 
-    @patch("opspilot.context.production_logs.subprocess.run")
-    def test_fetch_from_s3_success(self, mock_run):
-        """Test successful S3 log fetch."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "S3 log content"
-        mock_run.return_value = mock_result
-
-        result = fetch_logs_from_s3("my-bucket", "logs/app.log")
-        assert result == "S3 log content"
-
-    @patch("opspilot.context.production_logs.subprocess.run")
-    def test_fetch_from_s3_failure(self, mock_run):
-        """Test S3 fetch failure."""
-        mock_result = Mock()
-        mock_result.returncode = 1
-        mock_result.stderr = "Access denied"
-        mock_run.return_value = mock_result
-
-        result = fetch_logs_from_s3("my-bucket", "logs/app.log")
-        assert result is None
-
-
-class TestKubernetesLogFetching:
-    """Test Kubernetes log fetching."""
-
-    @patch("opspilot.context.production_logs.subprocess.run")
-    def test_fetch_kubectl_logs_success(self, mock_run):
-        """Test successful kubectl log fetch."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Pod log content"
-        mock_run.return_value = mock_result
-
-        result = fetch_logs_from_kubectl("production", "api-server")
-        assert result == "Pod log content"
-
-    @patch("opspilot.context.production_logs.subprocess.run")
-    def test_fetch_kubectl_logs_with_container(self, mock_run):
-        """Test kubectl log fetch with container name."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Container log content"
-        mock_run.return_value = mock_result
-
-        result = fetch_logs_from_kubectl("production", "api-server", "app")
-        assert result == "Container log content"
+    @pytest.mark.parametrize(
+        ("spec", "expected"),
+        [
+            (
+                "/aws/lambda/fn::2026/01/01/[$LATEST]abc",
+                ("/aws/lambda/fn", "2026/01/01/[$LATEST]abc"),
+            ),
+            ("app-group/stream-1", ("app-group", "stream-1")),
+        ],
+    )
+    def test_cloudwatch_parsing(self, spec, expected):
+        assert parse_cloudwatch_source(spec) == expected
 
 
-class TestAutoDetection:
-    """Test automatic log source detection."""
+class TestCliSources:
+    def _fake_popen(self, stdout=b"", stderr=b"", returncode=0):
+        process = Mock()
+        process.stdout.read = Mock(side_effect=[stdout, b""])
+        process.stderr.read = Mock(side_effect=[stderr, b""])
+        process.returncode = returncode
+        process.wait = Mock(return_value=returncode)
+        return process
 
-    @patch("opspilot.context.production_logs.fetch_logs_from_url")
-    def test_auto_detect_https_url(self, mock_fetch):
-        """Test auto-detection of HTTPS URL."""
-        mock_fetch.return_value = "URL logs"
+    def test_kubectl_command_uses_separator_before_pod(self):
+        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+            popen.return_value = self._fake_popen(stdout=b"pod logs")
+            assert auto_detect_and_fetch("k8s://prod/api-7d9f/web") == "pod logs"
+            cmd = popen.call_args.args[0]
+        assert cmd[:2] == ["kubectl", "logs"]
+        assert cmd[-2:] == ["--", "api-7d9f"]
+        assert cmd[cmd.index("-c") : cmd.index("-c") + 2] == ["-c", "web"]
 
-        result = auto_detect_and_fetch("https://example.com/logs/app.log")
-        assert result == "URL logs"
-        mock_fetch.assert_called_once()
+    def test_s3_command(self):
+        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+            popen.return_value = self._fake_popen(stdout=b"s3 logs")
+            assert auto_detect_and_fetch("s3://my-bucket/logs/app.log") == "s3 logs"
+            assert popen.call_args.args[0] == [
+                "aws",
+                "s3",
+                "cp",
+                "s3://my-bucket/logs/app.log",
+                "-",
+            ]
 
-    @patch("opspilot.context.production_logs.fetch_logs_from_s3")
-    def test_auto_detect_s3_path(self, mock_fetch):
-        """Test auto-detection of S3 path."""
-        mock_fetch.return_value = "S3 logs"
+    def test_cloudwatch_command_binds_values_to_flags(self):
+        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+            popen.return_value = self._fake_popen(stdout=b"cw logs")
+            auto_detect_and_fetch("cw:///aws/lambda/fn::stream-1")
+            cmd = popen.call_args.args[0]
+        assert "--log-group-name=/aws/lambda/fn" in cmd
+        assert "--log-stream-name=stream-1" in cmd
 
-        result = auto_detect_and_fetch("s3://my-bucket/logs/app.log")
-        assert result == "S3 logs"
-        mock_fetch.assert_called_with("my-bucket", "logs/app.log")
+    def test_cli_failure_reports_stderr(self):
+        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+            popen.return_value = self._fake_popen(stderr=b"AccessDenied", returncode=1)
+            with pytest.raises(LogSourceError, match="AccessDenied"):
+                auto_detect_and_fetch("s3://my-bucket/app.log")
 
-    @patch("opspilot.context.production_logs.fetch_logs_from_kubectl")
-    def test_auto_detect_kubernetes_path(self, mock_fetch):
-        """Test auto-detection of Kubernetes path."""
-        mock_fetch.return_value = "K8s logs"
+    def test_missing_cli_reports_install_hint(self):
+        with patch(
+            "opspilot.context.production_logs.subprocess.Popen",
+            side_effect=FileNotFoundError,
+        ):
+            with pytest.raises(LogSourceError, match="install it from"):
+                auto_detect_and_fetch("k8s://prod/api")
 
-        result = auto_detect_and_fetch("k8s://production/api-server")
-        assert result == "K8s logs"
-        mock_fetch.assert_called_with("production", "api-server")
+    def test_real_subprocess_output_is_tail_bounded(self, monkeypatch):
+        monkeypatch.setattr(pl, "MAX_FETCH_BYTES", 16)
+        code = "import sys; sys.stdout.write('x' * 100000 + 'END-OF-OUTPUT')"
+        out = pl._run_cli([sys.executable, "-c", code], "python", "")
+        assert out.endswith("END-OF-OUTPUT") and len(out) <= 16
 
-    @patch("opspilot.context.production_logs.fetch_logs_from_file")
-    def test_auto_detect_local_file(self, mock_fetch):
-        """Test auto-detection of local file path."""
-        mock_fetch.return_value = "Local logs"
-
-        result = auto_detect_and_fetch("/var/log/app.log")
-        assert result == "Local logs"
+    def test_timeout(self, monkeypatch):
+        monkeypatch.setattr(pl, "CLI_TIMEOUT", 0.5)
+        code = "import time; time.sleep(30)"
+        with pytest.raises(LogSourceError, match="timed out"):
+            pl._run_cli([sys.executable, "-c", code], "python", "")
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+def test_subprocess_module_is_not_shell_based():
+    # Guard: no shell=True anywhere in the fetcher.
+    import inspect
+
+    assert "shell=True" not in inspect.getsource(pl)
+    assert subprocess  # imported for clarity
