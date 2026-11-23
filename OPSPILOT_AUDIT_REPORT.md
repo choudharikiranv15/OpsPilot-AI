@@ -16,7 +16,7 @@
 
 The findings below describe `main` at `4b908aa`, the state that was audited. Remediation then landed on `main` in small commits, 54 of 67 checklist items, tracked in [`OPSPILOT_RELEASE_CHECKLIST.md`](OPSPILOT_RELEASE_CHECKLIST.md):
 
-- **Fixed:** BUG-01 to BUG-24 (except BUG-20, which went away with the provider rewrite), SEC-01 to SEC-11, SEC-13, and AI-01 to AI-11, with tests. CI is green on Linux, macOS and Windows (Python 3.11-3.13), including a clean-wheel install smoke test. 151+ tests; coverage about 89%.
+- **Fixed:** BUG-01 to BUG-24, SEC-01 to SEC-11, SEC-13, and AI-01 to AI-09 and AI-11, with tests. AI-10 (evaluation) now exists as `scripts/eval_diagnosis.py`. SEC-04 (prompt injection) is mitigated, not eliminated: data is delimited, outputs are schema-checked and citations validated, but log content can still sway a model's answer. CI is green on Linux, macOS and Windows (Python 3.11-3.13), including a clean-wheel install smoke test. 151+ tests; coverage about 89%.
 - **Partly done:** SEC-12 (the workflow uses Trusted Publishing and SHA-pinned actions; the PyPI and GitHub settings are still to be done by the maintainer).
 - **Measured AI quality:** on a 12-case golden set, schema validity and citation validity are 100%; category accuracy is 75% with `llama3.2` (3B) and 92% with `llama3` (8B) (`docs/evaluation.md`).
 - **Revised recommendation:** `main` is now a release candidate for 0.2.0, pending the remaining checklist items (PyPI trusted-publisher setup, a TestPyPI dry run, a manual smoke test on macOS/Linux) and a maintainer review.
