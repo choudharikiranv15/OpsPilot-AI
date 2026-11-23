@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures contain deliberate fake canary values"
+paths = ['''tests/fixtures/''']
