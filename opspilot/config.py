@@ -1,9 +1,9 @@
-from pathlib import Path
-from typing import Optional, Dict, Any
 import json
+from pathlib import Path
+from typing import Any
 
 
-def load_config(project_root: str) -> Optional[Dict[str, Any]]:
+def load_config(project_root: str) -> dict[str, Any] | None:
     """
     Load configuration from the project root directory.
 
@@ -16,7 +16,7 @@ def load_config(project_root: str) -> Optional[Dict[str, Any]]:
     config_path = Path(project_root) / ".opspilot.json"
 
     if config_path.exists():
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             return json.load(f)
 
     return None

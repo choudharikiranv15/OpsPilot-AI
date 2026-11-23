@@ -1,13 +1,12 @@
-from typing import Dict
 import json
-from opspilot.utils.llm import call_llama, safe_json_parse
+
 from opspilot.constants import (
     BUILD_ERROR_TRUNCATE_LIMIT,
-    LOG_TRUNCATE_LIMIT,
     DEPENDENCY_LIMIT,
+    LOG_TRUNCATE_LIMIT,
     STRUCTURE_TRUNCATE_LIMIT,
 )
-
+from opspilot.utils.llm import call_llama, safe_json_parse
 
 SYSTEM_PROMPT = """
 You are a senior site reliability engineer.
@@ -35,7 +34,7 @@ Do not include any text before the opening { or after the closing }.
 """
 
 
-def plan(context: Dict) -> Dict:
+def plan(context: dict) -> dict:
     """
     Planner agent:
     - Summarizes context
@@ -50,7 +49,9 @@ def plan(context: Dict) -> Dict:
 
     summarized_context = {
         "build_errors": build_errors,
-        "logs": context.get("logs", "")[:LOG_TRUNCATE_LIMIT] if context.get("logs") else None,
+        "logs": context.get("logs", "")[:LOG_TRUNCATE_LIMIT]
+        if context.get("logs")
+        else None,
         "env_vars": list(context.get("env", {}).keys()),
         "docker_present": bool(context.get("docker")),
         "dependencies": context.get("dependencies", [])[:DEPENDENCY_LIMIT],

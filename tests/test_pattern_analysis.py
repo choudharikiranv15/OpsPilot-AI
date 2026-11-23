@@ -1,15 +1,16 @@
 """Unit tests for error pattern analysis."""
 
 import pytest
+
 from opspilot.tools.pattern_analysis import (
-    identify_error_patterns,
-    build_error_timeline,
     _assess_severity,
-    _extract_http_errors,
-    _extract_exceptions,
     _extract_database_errors,
+    _extract_exceptions,
+    _extract_http_errors,
+    _extract_memory_errors,
     _extract_timeout_errors,
-    _extract_memory_errors
+    build_error_timeline,
+    identify_error_patterns,
 )
 
 
@@ -26,9 +27,9 @@ class TestErrorPatternDetection:
         """
 
         http_errors = _extract_http_errors(logs)
-        assert http_errors['500'] == 2
-        assert http_errors['503'] == 1
-        assert http_errors['404'] == 1
+        assert http_errors["500"] == 2
+        assert http_errors["503"] == 1
+        assert http_errors["404"] == 1
 
     def test_exception_detection(self):
         """Test Python exception extraction."""
@@ -39,9 +40,9 @@ class TestErrorPatternDetection:
         """
 
         exceptions = _extract_exceptions(logs)
-        assert 'ConnectionError' in exceptions
-        assert 'TimeoutError' in exceptions
-        assert 'ValueError' in exceptions
+        assert "ConnectionError" in exceptions
+        assert "TimeoutError" in exceptions
+        assert "ValueError" in exceptions
 
     def test_database_error_detection(self):
         """Test database error extraction."""
@@ -53,8 +54,8 @@ class TestErrorPatternDetection:
 
         db_errors = _extract_database_errors(logs)
         assert len(db_errors) == 3
-        assert any('psycopg2' in err for err in db_errors)
-        assert any('redis' in err for err in db_errors)
+        assert any("psycopg2" in err for err in db_errors)
+        assert any("redis" in err for err in db_errors)
 
     def test_timeout_error_detection(self):
         """Test timeout error counting."""
@@ -88,7 +89,7 @@ class TestSeverityClassification:
             "exceptions": [],
             "database_errors": [],
             "timeout_errors": 0,
-            "memory_errors": []
+            "memory_errors": [],
         }
 
         severity = _assess_severity(patterns)
@@ -101,7 +102,7 @@ class TestSeverityClassification:
             "exceptions": [],
             "database_errors": [],
             "timeout_errors": 0,
-            "memory_errors": ["MemoryError", "out of memory"]
+            "memory_errors": ["MemoryError", "out of memory"],
         }
 
         severity = _assess_severity(patterns)
@@ -114,7 +115,7 @@ class TestSeverityClassification:
             "exceptions": [],
             "database_errors": ["psycopg2.OperationalError"],
             "timeout_errors": 0,
-            "memory_errors": []
+            "memory_errors": [],
         }
 
         severity = _assess_severity(patterns)
@@ -127,7 +128,7 @@ class TestSeverityClassification:
             "exceptions": [],
             "database_errors": [],
             "timeout_errors": 2,
-            "memory_errors": []
+            "memory_errors": [],
         }
 
         severity = _assess_severity(patterns)
@@ -140,7 +141,7 @@ class TestSeverityClassification:
             "exceptions": [],
             "database_errors": [],
             "timeout_errors": 0,
-            "memory_errors": []
+            "memory_errors": [],
         }
 
         severity = _assess_severity(patterns)
@@ -159,17 +160,17 @@ class TestTimelineAnalysis:
         """
 
         timeline = build_error_timeline(logs)
-        assert timeline['first_seen'] == '2026-01-12 10:15:23'
-        assert timeline['last_seen'] == '2026-01-12 10:16:50'
-        assert timeline['total_occurrences'] == 3
+        assert timeline["first_seen"] == "2026-01-12 10:15:23"
+        assert timeline["last_seen"] == "2026-01-12 10:16:50"
+        assert timeline["total_occurrences"] == 3
 
     def test_timeline_no_timestamps(self):
         """Test timeline with no timestamps."""
         logs = "ERROR Some error without timestamp"
 
         timeline = build_error_timeline(logs)
-        assert timeline['first_seen'] == 'unknown'
-        assert timeline['last_seen'] == 'unknown'
+        assert timeline["first_seen"] == "unknown"
+        assert timeline["last_seen"] == "unknown"
 
 
 class TestIntegration:
@@ -199,22 +200,22 @@ class TestIntegration:
         patterns = identify_error_patterns(logs)
 
         # Verify HTTP errors detected
-        assert patterns['http_errors']['500'] >= 10
-        assert patterns['http_errors']['503'] == 1
+        assert patterns["http_errors"]["500"] >= 10
+        assert patterns["http_errors"]["503"] == 1
 
         # Verify severity is P0 (10+ 5xx + memory error)
-        assert patterns['severity'] == 'P0'
+        assert patterns["severity"] == "P0"
 
         # Verify exceptions detected
-        assert 'TimeoutError' in patterns['exceptions']
-        assert 'MemoryError' in patterns['exceptions']
+        assert "TimeoutError" in patterns["exceptions"]
+        assert "MemoryError" in patterns["exceptions"]
 
         # Verify database errors detected
-        assert len(patterns['database_errors']) >= 2
+        assert len(patterns["database_errors"]) >= 2
 
         # Verify error count
-        assert patterns['error_count'] > 0
+        assert patterns["error_count"] > 0
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

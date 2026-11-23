@@ -2,10 +2,9 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
-def read_env(project_root: str) -> Dict[str, str]:
+def read_env(project_root: str) -> dict[str, str]:
     """
     Read environment variables from .env file.
 
@@ -37,7 +36,7 @@ def read_env(project_root: str) -> Dict[str, str]:
             return env_vars
 
     try:
-        content = env_path.read_text(errors='ignore')
+        content = env_path.read_text(errors="ignore")
         env_vars = parse_env_content(content)
     except (PermissionError, OSError):
         pass
@@ -45,7 +44,7 @@ def read_env(project_root: str) -> Dict[str, str]:
     return env_vars
 
 
-def parse_env_content(content: str) -> Dict[str, str]:
+def parse_env_content(content: str) -> dict[str, str]:
     """
     Parse .env file content into a dictionary.
 
@@ -64,30 +63,33 @@ def parse_env_content(content: str) -> Dict[str, str]:
         i += 1
 
         # Skip empty lines and comments
-        if not line or line.startswith('#'):
+        if not line or line.startswith("#"):
             continue
 
         # Handle export prefix
-        if line.startswith('export '):
+        if line.startswith("export "):
             line = line[7:].strip()
 
         # Skip if no equals sign
-        if '=' not in line:
+        if "=" not in line:
             continue
 
         # Split on first equals
-        key, value = line.split('=', 1)
+        key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip()
 
         # Skip invalid keys
-        if not key or not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', key):
+        if not key or not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", key):
             continue
 
         # Handle quoted values
-        if value.startswith('"') and value.endswith('"'):
-            value = value[1:-1]
-        elif value.startswith("'") and value.endswith("'"):
+        if (
+            value.startswith('"')
+            and value.endswith('"')
+            or value.startswith("'")
+            and value.endswith("'")
+        ):
             value = value[1:-1]
         elif value.startswith('"') and not value.endswith('"'):
             # Multi-line quoted value
@@ -98,15 +100,15 @@ def parse_env_content(content: str) -> Dict[str, str]:
             if i < len(lines):
                 multi_value.append(lines[i].rstrip()[:-1])
                 i += 1
-            value = '\n'.join(multi_value)
+            value = "\n".join(multi_value)
 
         # Remove inline comments (not in quoted values)
-        if '#' in value and not (value.startswith('"') or value.startswith("'")):
-            value = value.split('#')[0].strip()
+        if "#" in value and not (value.startswith('"') or value.startswith("'")):
+            value = value.split("#")[0].strip()
 
         # Unescape common escape sequences
-        value = value.replace('\\n', '\n')
-        value = value.replace('\\t', '\t')
+        value = value.replace("\\n", "\n")
+        value = value.replace("\\t", "\t")
         value = value.replace('\\"', '"')
         value = value.replace("\\'", "'")
 
@@ -115,7 +117,7 @@ def parse_env_content(content: str) -> Dict[str, str]:
     return env_vars
 
 
-def get_required_env_vars(project_root: str) -> List[str]:
+def get_required_env_vars(project_root: str) -> list[str]:
     """
     Detect required environment variables from project files.
 
@@ -136,23 +138,26 @@ def get_required_env_vars(project_root: str) -> List[str]:
 
     # Patterns to search for
     patterns = [
-        r'process\.env\.([A-Z_][A-Z0-9_]*)',  # Node.js
-        r'os\.environ\[[\'"](.*?)[\'"]\]',    # Python
-        r'os\.getenv\([\'"](.*?)[\'"]\)',     # Python
-        r'ENV\[[\'"](.*?)[\'"]\]',            # Ruby
-        r'os\.Getenv\([\'"](.*?)[\'"]\)',     # Go
-        r'\$\{([A-Z_][A-Z0-9_]*)\}',          # Shell-style ${VAR}
-        r'getenv\([\'"](.*?)[\'"]\)',         # PHP
+        r"process\.env\.([A-Z_][A-Z0-9_]*)",  # Node.js
+        r'os\.environ\[[\'"](.*?)[\'"]\]',  # Python
+        r'os\.getenv\([\'"](.*?)[\'"]\)',  # Python
+        r'ENV\[[\'"](.*?)[\'"]\]',  # Ruby
+        r'os\.Getenv\([\'"](.*?)[\'"]\)',  # Go
+        r"\$\{([A-Z_][A-Z0-9_]*)\}",  # Shell-style ${VAR}
+        r'getenv\([\'"](.*?)[\'"]\)',  # PHP
     ]
 
     # File extensions to scan
-    extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.rb', '.go', '.php']
+    extensions = [".js", ".ts", ".jsx", ".tsx", ".py", ".rb", ".go", ".php"]
 
     # Scan source files (limit depth)
     for ext in extensions:
-        for f in root.rglob(f'*{ext}'):
+        for f in root.rglob(f"*{ext}"):
             # Skip node_modules, venv, etc.
-            if any(skip in str(f) for skip in ['node_modules', 'venv', '.venv', 'vendor', '__pycache__']):
+            if any(
+                skip in str(f)
+                for skip in ["node_modules", "venv", ".venv", "vendor", "__pycache__"]
+            ):
                 continue
 
             # Limit to top 3 levels
@@ -160,17 +165,17 @@ def get_required_env_vars(project_root: str) -> List[str]:
                 continue
 
             try:
-                content = f.read_text(errors='ignore')
+                content = f.read_text(errors="ignore")
                 for pattern in patterns:
                     matches = re.findall(pattern, content)
                     required_vars.update(matches)
             except (PermissionError, OSError):
                 continue
 
-    return sorted(list(required_vars))
+    return sorted(required_vars)
 
 
-def validate_env(project_root: str) -> Dict[str, Optional[str]]:
+def validate_env(project_root: str) -> dict[str, str | None]:
     """
     Validate environment variables against what appears to be required.
 

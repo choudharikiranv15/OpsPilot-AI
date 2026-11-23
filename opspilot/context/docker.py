@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import Dict
 
 
-def read_docker_files(project_root: str) -> Dict[str, str]:
+def read_docker_files(project_root: str) -> dict[str, str]:
     root = Path(project_root)
     docker_data = {}
 

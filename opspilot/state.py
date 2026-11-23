@@ -1,17 +1,18 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Any
+
 
 @dataclass
 class AgentState:
     project_root: str
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
 
-    hypothesis: Optional[str] = None
+    hypothesis: str | None = None
     confidence: float = 0.0
 
-    evidence: Dict[str, Any] = field(default_factory=dict)
-    suggestions: List[Dict[str, Any]] = field(default_factory=list)
-    checks_remaining: List[str] = field(default_factory=list)
+    evidence: dict[str, Any] = field(default_factory=dict)
+    suggestions: list[dict[str, Any]] = field(default_factory=list)
+    checks_remaining: list[str] = field(default_factory=list)
 
     iteration: int = 0
     max_iterations: int = 2

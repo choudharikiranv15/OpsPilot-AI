@@ -1,11 +1,11 @@
 """Log file reading and aggregation for local project logs."""
 
 from pathlib import Path
-from typing import Optional, List
-from opspilot.constants import LOG_TRUNCATE_LIMIT, LOG_FILE_PATTERNS
+
+from opspilot.constants import LOG_FILE_PATTERNS, LOG_TRUNCATE_LIMIT
 
 
-def read_logs(project_root: str, max_size: int = LOG_TRUNCATE_LIMIT) -> Optional[str]:
+def read_logs(project_root: str, max_size: int = LOG_TRUNCATE_LIMIT) -> str | None:
     """
     Read and aggregate log files from project directory with intelligent sampling.
 
@@ -87,7 +87,7 @@ def read_logs(project_root: str, max_size: int = LOG_TRUNCATE_LIMIT) -> Optional
 
         try:
             file_size = log_file.stat().st_size
-            
+
             # For large files (>1MB), sample intelligently instead of reading all
             if file_size > 1024 * 1024:  # 1MB
                 content = _sample_large_log(log_file, max_size // 5)
@@ -95,7 +95,7 @@ def read_logs(project_root: str, max_size: int = LOG_TRUNCATE_LIMIT) -> Optional
                 content = log_file.read_text(errors="ignore")
                 # Take the last portion if file is large
                 if len(content) > max_size // 2:
-                    content = content[-(max_size // 2):]
+                    content = content[-(max_size // 2) :]
 
             remaining_space = max_size - total_size
             if len(content) > remaining_space:
@@ -117,56 +117,66 @@ def read_logs(project_root: str, max_size: int = LOG_TRUNCATE_LIMIT) -> Optional
 def _sample_large_log(log_file: Path, max_lines: int = 200) -> str:
     """
     Intelligently sample a large log file, prioritizing errors.
-    
+
     Strategy:
     1. Sample last N lines (most recent)
     2. Prioritize lines with ERROR, FATAL, Exception
     3. Skip repetitive lines
-    
+
     Args:
         log_file: Path to log file
         max_lines: Maximum lines to sample
-    
+
     Returns:
         Sampled log content
     """
     try:
         # Read last N lines using efficient tail-like approach
-        with open(log_file, 'rb') as f:
+        with open(log_file, "rb") as f:
             # Seek to end
             f.seek(0, 2)
             file_size = f.tell()
-            
+
             # Read last chunk (up to 100KB for performance)
             chunk_size = min(100 * 1024, file_size)
             f.seek(max(0, file_size - chunk_size))
-            
-            content = f.read().decode('utf-8', errors='ignore')
+
+            content = f.read().decode("utf-8", errors="ignore")
             lines = content.splitlines()
-            
+
             # Prioritize error lines
-            error_keywords = ['ERROR', 'FATAL', 'CRITICAL', 'Exception', 'Traceback', 'Failed', 'Timeout']
+            error_keywords = [
+                "ERROR",
+                "FATAL",
+                "CRITICAL",
+                "Exception",
+                "Traceback",
+                "Failed",
+                "Timeout",
+            ]
             error_lines = []
             other_lines = []
-            
+
             for line in lines[-max_lines:]:
                 if any(keyword in line for keyword in error_keywords):
                     error_lines.append(line)
                 else:
                     other_lines.append(line)
-            
+
             # Take all errors + some context
-            sampled = error_lines[:max_lines // 2] + other_lines[:max_lines // 2]
-            
+            sampled = error_lines[: max_lines // 2] + other_lines[: max_lines // 2]
+
             if len(lines) > max_lines:
-                return f"[Sampled {len(sampled)} of {len(lines)} lines]\n" + "\n".join(sampled)
+                return f"[Sampled {len(sampled)} of {len(lines)} lines]\n" + "\n".join(
+                    sampled
+                )
             return "\n".join(sampled)
-    
+
     except Exception:
         return "[Failed to sample log file]"
 
 
-def find_log_files(project_root: str) -> List[Path]:
+def find_log_files(project_root: str) -> list[Path]:
     """
     Find all log files in the project.
 
@@ -216,12 +226,14 @@ def get_log_summary(project_root: str) -> dict:
         try:
             size = f.stat().st_size
             mtime = f.stat().st_mtime
-            file_info.append({
-                "name": f.name,
-                "path": str(f),
-                "size": size,
-                "modified": mtime,
-            })
+            file_info.append(
+                {
+                    "name": f.name,
+                    "path": str(f),
+                    "size": size,
+                    "modified": mtime,
+                }
+            )
             total_size += size
         except (PermissionError, OSError):
             continue
