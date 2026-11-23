@@ -1,0 +1,9 @@
+2026-11-20 10:00:01 INFO Starting service on port 8080
+2026-11-20 10:05:12 ERROR redis.exceptions.TimeoutError: Timeout reading from socket
+2026-11-20 10:05:13 ERROR GET /api/orders failed with status 503
+2026-11-20 10:05:14 ERROR Traceback (most recent call last):
+  File "app/main.py", line 42, in handler
+    order = cache.get(key)
+redis.exceptions.TimeoutError: Timeout reading from socket
+2026-11-20 10:06:00 ERROR psycopg2.OperationalError: connection refused to db:5432
+2026-11-20 10:06:30 WARN Retrying request (attempt 2)
