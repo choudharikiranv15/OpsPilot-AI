@@ -41,6 +41,16 @@ _FRAME_PATTERNS = [
     re.compile(r"-->\s*([\w./-]+\.rs):(\d+):\d+"),  # Rust
 ]
 _VOLATILE = re.compile(r"0x[0-9a-fA-F]+|\b\d+\b")
+# Summary lines that report zero problems ("Failed: 0", "0 errors", "errors=0").
+_ZERO_PROBLEMS = re.compile(
+    r"(?i)\b(?:fail(?:ed|ures?)?|errors?)\b\W{0,3}[:=]?\s*0\b(?!\.\d)"
+    r"|\b0\s+(?:fail(?:ed|ures?)?|errors?)\b"
+)
+
+
+def is_error_line(line: str) -> bool:
+    """True for lines that report a problem (excluding 'Failed: 0' summaries)."""
+    return bool(_ERROR_LINE.search(line)) and not _ZERO_PROBLEMS.search(line)
 
 
 class FactBuilder:
@@ -79,18 +89,8 @@ def build_facts(
     if logs:
         _log_facts(builder, logs, log_source, root)
     if undefined_env:
-        shown = list(undefined_env.items())[:10]
-        names = ", ".join(f"{name} ({where})" for name, where in shown)
-        more = (
-            f" and {len(undefined_env) - len(shown)} more"
-            if len(undefined_env) > 10
-            else ""
-        )
         builder.add(
-            "config",
-            f"Environment variables referenced in code but not defined in the "
-            f"project's .env files (they may still be set at runtime): {names}{more}",
-            source="source code scan",
+            "config", _undefined_env_text(undefined_env), source="source code scan"
         )
     for commit in (commits or [])[:5]:
         files = ", ".join(commit.get("files", [])[:5])
@@ -104,7 +104,120 @@ def build_facts(
     return builder.facts
 
 
+def _undefined_env_text(undefined_env: dict[str, str]) -> str:
+    """Fit as many variable names as possible within the fact length limit."""
+    prefix = (
+        "Environment variables referenced in code but not defined in the project's "
+        ".env files (they may still be set at runtime): "
+    )
+    items = list(undefined_env.items())
+    for with_files in (True, False):
+        for count in range(len(items), 0, -1):
+            shown = items[:count]
+            names = ", ".join(f"{n} ({w})" if with_files else n for n, w in shown)
+            more = f" and {len(items) - count} more" if count < len(items) else ""
+            text = prefix + names + more
+            if len(text) <= MAX_FACT_CHARS and (count == len(items) or not with_files):
+                return text
+    return prefix + f"{len(items)} variables"
+
+
+# Compiler-style diagnostics with a location:
+#   src/a.ts(12,5): error TS2322: msg          (tsc)
+#   src/a.ts:12:5 - error TS2322: msg          (tsc --pretty)
+#   app/x.py:12: error: msg  [arg-type]        (mypy)
+#   main.go:12:5: undefined: foo / x.c:3:1: error: msg   (go, gcc, clang, eslint unix)
+_DIAGNOSTIC_PATTERNS = [
+    re.compile(
+        r"^(?P<file>[^\s()][^()\n]*?)\((?P<line>\d+),\d+\):\s+(?:error|warning)\s+"
+        r"(?P<code>[A-Z]+\d+):\s*(?P<msg>.+)$",
+        re.M,
+    ),
+    re.compile(
+        r"^(?P<file>[^\s:]+\.\w+):(?P<line>\d+):\d+\s+-\s+error\s+(?P<code>[A-Z]+\d+):\s*(?P<msg>.+)$",
+        re.M,
+    ),
+    re.compile(
+        r"^(?P<file>[^\s:]+\.pyi?):(?P<line>\d+):(?:\d+:)?\s+error:\s+(?P<msg>.+?)"
+        r"(?:\s+\[(?P<code>[\w-]+)\])?$",
+        re.M,
+    ),
+    re.compile(
+        r"^(?P<file>[^\s:]+\.(?:go|c|cc|cpp|h|hpp|rs|java|kt|swift|js|jsx|ts|tsx|mjs|cjs)):"
+        r"(?P<line>\d+):\d+:\s+(?:(?:fatal\s+)?error:\s+)?(?P<msg>.+)$",
+        re.M,
+    ),
+]
+
+
+def _diagnostics(output: str) -> list[dict]:
+    for pattern in _DIAGNOSTIC_PATTERNS:
+        found = [m.groupdict() for m in pattern.finditer(output)]
+        if found:
+            return found
+    return []
+
+
+def _diagnostic_facts(
+    builder: FactBuilder, diagnostics: list[dict], source: str, root: Path
+) -> None:
+    """Group located compiler diagnostics by (code, message), most frequent first."""
+    groups: OrderedDict[tuple[str, str], list[dict]] = OrderedDict()
+    per_file: dict[str, int] = {}
+    for d in diagnostics:
+        msg = d["msg"].strip()
+        groups.setdefault((d.get("code") or "", _VOLATILE.sub("#", msg)), []).append(d)
+        per_file[d["file"]] = per_file.get(d["file"], 0) + 1
+
+    codes: dict[str, int] = {}
+    for (code, _), items in groups.items():
+        if code:
+            codes[code] = codes.get(code, 0) + len(items)
+    top_codes = ", ".join(
+        f"{c} x{n}" for c, n in sorted(codes.items(), key=lambda kv: -kv[1])[:6]
+    )
+    top_files = ", ".join(
+        f"{f} ({n})" for f, n in sorted(per_file.items(), key=lambda kv: -kv[1])[:5]
+    )
+    if len(diagnostics) > 1:
+        builder.add(
+            "build_error",
+            f"{len(diagnostics)} errors in {len(per_file)} files"
+            + (f"; by code: {top_codes}" if top_codes else "")
+            + f"; most affected files: {top_files}",
+            source=source,
+            count=len(diagnostics),
+        )
+
+    ranked = sorted(groups.items(), key=lambda kv: -len(kv[1]))
+    for (code, _), items in ranked[: MAX_BUILD_FACTS - 1]:
+        first = items[0]
+        files = sorted({d["file"] for d in items})
+        rel = project_relative(first["file"], root)
+        where = files[0] if len(files) == 1 else f"{len(files)} files, e.g. {files[0]}"
+        builder.add(
+            "build_error",
+            f"{code + ': ' if code else ''}{first['msg'].strip()} "
+            f"(in {where}, first at line {first['line']})",
+            source=source,
+            count=len(items),
+            location=f"{rel}:{first['line']}" if rel else None,
+        )
+    hidden = len(ranked) - (MAX_BUILD_FACTS - 1)
+    if hidden > 0:
+        builder.add(
+            "build_error",
+            f"{hidden} further distinct error message(s) not listed",
+            source=source,
+        )
+
+
 def _build_facts(builder: FactBuilder, output: str, source: str, root: Path) -> None:
+    diagnostics = _diagnostics(output)
+    if diagnostics:
+        _diagnostic_facts(builder, diagnostics, source, root)
+        _frame_facts(builder, output, source, root)
+        return
     parsed = parse_build_errors(output)
     for error in parsed.get("errors", [])[:MAX_BUILD_FACTS]:
         label = error.get("error_class") or error.get("type", "error")
@@ -125,7 +238,7 @@ def _log_facts(builder: FactBuilder, logs: str, source: str | None, root: Path) 
         if header:
             current = header.group(1)
             continue
-        if not _ERROR_LINE.search(raw):
+        if not is_error_line(raw):
             continue
         text = _TIMESTAMP.sub("", raw).strip()
         if not text:
@@ -209,7 +322,7 @@ def project_relative(path: str, root: Path) -> str | None:
 def _error_lines(text: str) -> list[str]:
     lines = []
     for raw in text.splitlines():
-        if _ERROR_LINE.search(raw):
+        if is_error_line(raw):
             stripped = _TIMESTAMP.sub("", raw).strip()
             if stripped:
                 lines.append(stripped)

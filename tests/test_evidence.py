@@ -60,7 +60,8 @@ def test_build_output_facts(tmp_path):
     output = "src/app.ts:4:7 - error TS2322: Type 'string' is not assignable to type 'number'.\n"
     facts = facts_for(tmp_path, build_output=output, build_source="stdin")
     assert facts[0].kind == "build_error"
-    assert "not assignable" in facts[0].text
+    assert "TS2322: Type 'string' is not assignable" in facts[0].text
+    assert "src/app.ts" in facts[0].text
     assert facts[0].source == "stdin"
 
 
@@ -146,3 +147,54 @@ def test_category_normalisation():
     assert normalize_category("syntax error") == "code_bug"
     assert normalize_category("something odd") == "other"
     assert normalize_category("") == "other"
+
+
+TSC_OUTPUT = (
+    "src/i18n.ts(10,5): error TS1117: An object literal cannot have multiple "
+    "properties with the same name.\n"
+    "src/i18n.ts(42,5): error TS1117: An object literal cannot have multiple "
+    "properties with the same name.\n"
+    "src/i18n.ts(77,5): error TS1117: An object literal cannot have multiple "
+    "properties with the same name.\n"
+    "src/pages/Index.tsx(86,9): error TS2554: Expected 1 arguments, but got 2.\n"
+)
+
+
+def test_compiler_diagnostics_are_grouped_with_counts_and_locations(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "i18n.ts").write_text("x\n" * 80, encoding="utf-8")
+    facts = facts_for(tmp_path, build_output=TSC_OUTPUT)
+    summary, top, second = facts[0], facts[1], facts[2]
+    assert summary.text.startswith("4 errors in 2 files; by code: TS1117 x3, TS2554 x1")
+    assert "most affected files: src/i18n.ts (3)" in summary.text
+    assert top.count == 3 and top.text.startswith("TS1117: An object literal")
+    assert top.location == "src/i18n.ts:10"
+    assert second.location is None  # src/pages/Index.tsx does not exist here
+
+
+def test_mypy_and_go_diagnostics(tmp_path):
+    mypy = "app/x.py:12: error: Incompatible types in assignment  [assignment]\n"
+    facts = facts_for(tmp_path, build_output=mypy)
+    assert facts[0].text.startswith("assignment: Incompatible types")
+    go = "./main.go:27:5: undefined: handlerFunc\n"
+    facts = facts_for(tmp_path, build_output=go)
+    assert "undefined: handlerFunc" in facts[0].text
+
+
+def test_zero_failure_summaries_are_not_errors(tmp_path):
+    logs = "Tests: 12 passed, 0 failed\nFailed: 0\nerrors=0\nERROR real problem\n"
+    texts = [f.text for f in facts_for(tmp_path, logs=logs) if f.kind == "log_error"]
+    assert texts == ["ERROR real problem"]
+
+
+def test_config_fact_prefers_names_over_paths_and_stays_bounded(tmp_path):
+    few = {
+        f"VAR_{i}": f"src/very/deeply/nested/directory/module_{i}.ts" for i in range(4)
+    }
+    fact = facts_for(tmp_path, undefined_env=few)[0]
+    assert all(name in fact.text for name in few)  # names kept, paths dropped
+    many = {f"VERY_LONG_VARIABLE_NAME_{i}": "src/x.ts" for i in range(20)}
+    fact = facts_for(tmp_path, undefined_env=many)[0]
+    assert len(fact.text) <= 300
+    assert "VERY_LONG_VARIABLE_NAME_0" in fact.text
+    assert fact.text.rstrip().endswith("more")
