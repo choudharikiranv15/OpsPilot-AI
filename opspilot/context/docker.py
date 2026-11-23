@@ -1,16 +1,21 @@
+"""Docker configuration detection.
+
+Only file *names* are reported. File contents can embed credentials
+(build args, environment blocks), so they are never read into context.
+"""
+
 from pathlib import Path
 
+DOCKER_FILE_CANDIDATES = (
+    "Dockerfile",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "compose.yml",
+    "compose.yaml",
+)
 
-def read_docker_files(project_root: str) -> dict[str, str]:
+
+def find_docker_files(project_root: str) -> list[str]:
+    """Return the Docker-related files present in the project root."""
     root = Path(project_root)
-    docker_data = {}
-
-    dockerfile = root / "Dockerfile"
-    if dockerfile.exists():
-        docker_data["Dockerfile"] = dockerfile.read_text()
-
-    compose = root / "docker-compose.yml"
-    if compose.exists():
-        docker_data["docker-compose.yml"] = compose.read_text()
-
-    return docker_data
+    return [name for name in DOCKER_FILE_CANDIDATES if (root / name).is_file()]

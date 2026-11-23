@@ -52,8 +52,8 @@ def plan(context: dict) -> dict:
         "logs": context.get("logs", "")[:LOG_TRUNCATE_LIMIT]
         if context.get("logs")
         else None,
-        "env_vars": list(context.get("env", {}).keys()),
-        "docker_present": bool(context.get("docker")),
+        "env_var_names": list(context.get("env", [])),
+        "docker_files": list(context.get("docker", [])),
         "dependencies": context.get("dependencies", [])[:DEPENDENCY_LIMIT],
         "structure": str(context.get("structure", ""))[:STRUCTURE_TRUNCATE_LIMIT],
     }

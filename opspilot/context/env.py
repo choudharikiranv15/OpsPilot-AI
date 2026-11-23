@@ -1,47 +1,52 @@
-"""Environment variable file parsing."""
+"""Environment variable file parsing.
+
+Security note: OpsPilot only ever exposes environment variable *names* to the
+rest of the pipeline (context, reports, prompts). Values are parsed solely to
+determine names and are discarded immediately; see ``read_env_names``.
+"""
 
 import re
 from pathlib import Path
 
+ENV_FILE_CANDIDATES = (".env", ".env.local", ".env.development", ".env.production")
 
-def read_env(project_root: str) -> dict[str, str]:
+
+def read_env_names(project_root: str) -> list[str]:
     """
-    Read environment variables from .env file.
+    Return the sorted, de-duplicated variable names defined in the project's
+    .env files (.env, .env.local, .env.development, .env.production).
 
-    Handles:
-    - Standard KEY=value format
-    - Quoted values: KEY="value with spaces"
-    - Values with equals signs: KEY=value=with=equals
-    - Comments (# and inline comments)
-    - export KEY=value format
-    - Multi-line values (quoted)
-
-    Args:
-        project_root: Root directory of the project
-
-    Returns:
-        Dictionary of environment variable names to values
+    Values are never returned, stored, or logged.
     """
-    env_path = Path(project_root) / ".env"
-    env_vars = {}
+    names: set[str] = set()
+    for name in ENV_FILE_CANDIDATES:
+        path = Path(project_root) / name
+        if not path.is_file():
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except (PermissionError, OSError):
+            continue
+        names.update(parse_env_content(content).keys())
+    return sorted(names)
 
-    if not env_path.exists():
-        # Also check for .env.local, .env.development, etc.
-        for alt_name in [".env.local", ".env.development", ".env.production"]:
-            alt_path = Path(project_root) / alt_name
-            if alt_path.exists():
-                env_path = alt_path
-                break
-        else:
-            return env_vars
 
-    try:
-        content = env_path.read_text(errors="ignore")
-        env_vars = parse_env_content(content)
-    except (PermissionError, OSError):
-        pass
+def _read_env_values(project_root: str) -> dict[str, str]:
+    """
+    Internal helper: parse the first .env file found, including values.
 
-    return env_vars
+    Never pass the result to context, reports, logs, or LLM prompts.
+    """
+    for name in ENV_FILE_CANDIDATES:
+        path = Path(project_root) / name
+        if path.is_file():
+            try:
+                return parse_env_content(
+                    path.read_text(encoding="utf-8", errors="ignore")
+                )
+            except (PermissionError, OSError):
+                return {}
+    return {}
 
 
 def parse_env_content(content: str) -> dict[str, str]:
@@ -175,18 +180,11 @@ def get_required_env_vars(project_root: str) -> list[str]:
     return sorted(required_vars)
 
 
-def validate_env(project_root: str) -> dict[str, str | None]:
+def find_undefined_env_vars(project_root: str) -> list[str]:
     """
-    Validate environment variables against what appears to be required.
+    Return names referenced in source code but not defined in any .env file.
 
-    Returns:
-        Dictionary mapping variable names to their values (None if missing)
+    Only names are returned; values are never read into the result.
     """
-    env_vars = read_env(project_root)
-    required = get_required_env_vars(project_root)
-
-    result = {}
-    for var in required:
-        result[var] = env_vars.get(var)
-
-    return result
+    defined = set(read_env_names(project_root))
+    return [v for v in get_required_env_vars(project_root) if v not in defined]

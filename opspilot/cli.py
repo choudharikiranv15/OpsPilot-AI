@@ -34,8 +34,8 @@ from opspilot.context.deployment_history import (
     format_deployment_analysis,
 )
 from opspilot.context.deps import read_dependencies
-from opspilot.context.docker import read_docker_files
-from opspilot.context.env import read_env
+from opspilot.context.docker import find_docker_files
+from opspilot.context.env import read_env_names
 from opspilot.context.logs import read_logs
 from opspilot.context.production_logs import auto_detect_and_fetch
 from opspilot.context.project import scan_project_tree
@@ -513,8 +513,8 @@ def analyze(
         state.context = {
             "structure": scan_project_tree(project_root),
             "logs": production_logs if production_logs else read_logs(project_root),
-            "env": read_env(project_root),
-            "docker": read_docker_files(project_root),
+            "env": read_env_names(project_root),
+            "docker": find_docker_files(project_root),
             "dependencies": read_dependencies(project_root),
             "build_errors": build_errors,
         }
