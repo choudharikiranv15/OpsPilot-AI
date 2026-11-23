@@ -80,6 +80,8 @@ opspilot analyze -o report.md
 opspilot analyze --json > result.json
 ```
 
+`--build-cmd` runs the command you give with your own permissions in the current directory, without a shell (no `&&`, pipes or `$VAR` expansion), and stops it after `OPSPILOT_BUILD_TIMEOUT` seconds.
+
 `--log-source` also accepts `https://` URLs, `s3://bucket/key` (needs the AWS CLI), `k8s://NAMESPACE/POD` or `k8s://NAMESPACE/POD/CONTAINER` (needs `kubectl`), and `cw://LOG_GROUP::LOG_STREAM` (needs the AWS CLI). All sources are capped at the most recent 5 MB.
 
 ### Example output
