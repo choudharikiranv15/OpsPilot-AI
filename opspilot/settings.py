@@ -101,6 +101,9 @@ class OpsPilotSettings(BaseSettings):
     max_retries: int = Field(
         default=2, ge=0, le=5, description="Retries for transient LLM errors"
     )
+    build_timeout: int = Field(
+        default=300, ge=1, description="Time limit for --build-cmd (seconds)"
+    )
 
     # Privacy
     redact: bool = Field(

@@ -5,6 +5,7 @@ rest of the pipeline (context, reports, prompts). Values are parsed solely to
 determine names and are discarded immediately; see ``read_env_names``.
 """
 
+import os
 import re
 from pathlib import Path
 
@@ -122,69 +123,103 @@ def parse_env_content(content: str) -> dict[str, str]:
     return env_vars
 
 
-def get_required_env_vars(project_root: str) -> list[str]:
+_ENV_REFERENCE_PATTERNS = [
+    re.compile(r"process\.env\.([A-Z_][A-Z0-9_]*)"),  # Node.js
+    re.compile(r"process\.env\[['\"]([A-Z_][A-Z0-9_]*)['\"]\]"),  # Node.js
+    re.compile(r"os\.environ\[['\"]([A-Z_][A-Z0-9_]*)['\"]\]"),  # Python
+    re.compile(r"os\.environ\.get\(['\"]([A-Z_][A-Z0-9_]*)['\"]"),  # Python
+    re.compile(r"os\.getenv\(['\"]([A-Z_][A-Z0-9_]*)['\"]"),  # Python
+    re.compile(r"ENV\[['\"]([A-Z_][A-Z0-9_]*)['\"]\]"),  # Ruby
+    re.compile(r"os\.Getenv\(['\"]([A-Z_][A-Z0-9_]*)['\"]\)"),  # Go
+    re.compile(r"getenv\(['\"]([A-Z_][A-Z0-9_]*)['\"]\)"),  # PHP / C
+]
+_SOURCE_EXTENSIONS = {
+    ".js",
+    ".mjs",
+    ".cjs",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".py",
+    ".rb",
+    ".go",
+    ".php",
+}
+_SKIP_DIRS = {
+    ".git",
+    "node_modules",
+    "venv",
+    ".venv",
+    "env",
+    "vendor",
+    "__pycache__",
+    "dist",
+    "build",
+    ".next",
+    "target",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    "site-packages",
+    "coverage",
+    "bower_components",
+}
+MAX_SCAN_DEPTH = 4
+MAX_SCAN_FILES = 2000
+MAX_SCAN_FILE_BYTES = 512 * 1024
+
+
+def find_env_references(project_root: str) -> dict[str, str]:
     """
-    Detect required environment variables from project files.
+    Map environment variable names referenced in source code to the first
+    file (relative path) that references them.
 
-    Scans common patterns:
-    - process.env.VAR_NAME (Node.js)
-    - os.environ['VAR_NAME'] (Python)
-    - ENV['VAR_NAME'] (Ruby)
-    - os.Getenv("VAR_NAME") (Go)
-
-    Args:
-        project_root: Root directory of the project
-
-    Returns:
-        List of environment variable names that appear to be required
+    The walk prunes dependency/build directories and is bounded by depth,
+    file count and file size, so it stays fast on large repositories.
     """
-    root = Path(project_root)
-    required_vars = set()
-
-    # Patterns to search for
-    patterns = [
-        r"process\.env\.([A-Z_][A-Z0-9_]*)",  # Node.js
-        r'os\.environ\[[\'"](.*?)[\'"]\]',  # Python
-        r'os\.getenv\([\'"](.*?)[\'"]\)',  # Python
-        r'ENV\[[\'"](.*?)[\'"]\]',  # Ruby
-        r'os\.Getenv\([\'"](.*?)[\'"]\)',  # Go
-        r"\$\{([A-Z_][A-Z0-9_]*)\}",  # Shell-style ${VAR}
-        r'getenv\([\'"](.*?)[\'"]\)',  # PHP
-    ]
-
-    # File extensions to scan
-    extensions = [".js", ".ts", ".jsx", ".tsx", ".py", ".rb", ".go", ".php"]
-
-    # Scan source files (limit depth)
-    for ext in extensions:
-        for f in root.rglob(f"*{ext}"):
-            # Skip node_modules, venv, etc.
-            if any(
-                skip in str(f)
-                for skip in ["node_modules", "venv", ".venv", "vendor", "__pycache__"]
-            ):
+    root = Path(project_root).resolve()
+    found: dict[str, str] = {}
+    scanned = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        depth = len(Path(dirpath).relative_to(root).parts)
+        dirnames[:] = sorted(
+            d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")
+        )
+        if depth >= MAX_SCAN_DEPTH:
+            dirnames[:] = []
+        for name in sorted(filenames):
+            if Path(name).suffix not in _SOURCE_EXTENSIONS:
                 continue
-
-            # Limit to top 3 levels
-            if len(f.relative_to(root).parts) > 4:
-                continue
-
+            path = Path(dirpath) / name
             try:
-                content = f.read_text(errors="ignore")
-                for pattern in patterns:
-                    matches = re.findall(pattern, content)
-                    required_vars.update(matches)
-            except (PermissionError, OSError):
+                if path.stat().st_size > MAX_SCAN_FILE_BYTES:
+                    continue
+                content = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
                 continue
+            scanned += 1
+            rel = path.relative_to(root).as_posix()
+            for pattern in _ENV_REFERENCE_PATTERNS:
+                for var in pattern.findall(content):
+                    found.setdefault(var, rel)
+            if scanned >= MAX_SCAN_FILES:
+                return found
+    return found
 
-    return sorted(required_vars)
+
+def get_required_env_vars(project_root: str) -> list[str]:
+    """Names of environment variables referenced in source code."""
+    return sorted(find_env_references(project_root))
 
 
-def find_undefined_env_vars(project_root: str) -> list[str]:
+def find_undefined_env_vars(project_root: str) -> dict[str, str]:
     """
-    Return names referenced in source code but not defined in any .env file.
-
-    Only names are returned; values are never read into the result.
+    Variables referenced in code but not defined in any project .env file,
+    mapped to the file that references them. Names only, never values.
     """
     defined = set(read_env_names(project_root))
-    return [v for v in get_required_env_vars(project_root) if v not in defined]
+    return {
+        name: where
+        for name, where in sorted(find_env_references(project_root).items())
+        if name not in defined
+    }

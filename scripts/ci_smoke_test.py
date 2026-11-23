@@ -8,6 +8,7 @@ Usage: python scripts/ci_smoke_test.py <dist-dir>
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -65,7 +66,9 @@ def main() -> None:
         run([opspilot, "--version"], env=env)
         run([opspilot, "--help"], env=env)
         run([python, "-m", "opspilot", "--help"], env=env)
-        run([opspilot, "analyze", "--mode", "explain"], cwd=project, env=env)
+        run([opspilot, "analyze", "--no-llm"], cwd=project, env=env)
+        result = run([opspilot, "analyze", "--no-llm", "--json"], cwd=project, env=env)
+        json.loads(result.stdout)  # stdout must be pure JSON
 
     print("smoke test passed")
 

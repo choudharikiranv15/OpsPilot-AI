@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
+from opspilot import proc
 from opspilot.context import production_logs as pl
 from opspilot.context.production_logs import (
     LogSourceError,
@@ -71,7 +72,7 @@ class TestSourceValidation:
         ],
     )
     def test_rejects_unsafe_or_malformed_identifiers(self, source):
-        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+        with patch("opspilot.proc.subprocess.Popen") as popen:
             with pytest.raises(LogSourceError):
                 auto_detect_and_fetch(source)
             popen.assert_not_called()
@@ -100,7 +101,7 @@ class TestCliSources:
         return process
 
     def test_kubectl_command_uses_separator_before_pod(self):
-        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+        with patch("opspilot.proc.subprocess.Popen") as popen:
             popen.return_value = self._fake_popen(stdout=b"pod logs")
             assert auto_detect_and_fetch("k8s://prod/api-7d9f/web") == "pod logs"
             cmd = popen.call_args.args[0]
@@ -109,7 +110,7 @@ class TestCliSources:
         assert cmd[cmd.index("-c") : cmd.index("-c") + 2] == ["-c", "web"]
 
     def test_s3_command(self):
-        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+        with patch("opspilot.proc.subprocess.Popen") as popen:
             popen.return_value = self._fake_popen(stdout=b"s3 logs")
             assert auto_detect_and_fetch("s3://my-bucket/logs/app.log") == "s3 logs"
             assert popen.call_args.args[0] == [
@@ -121,7 +122,7 @@ class TestCliSources:
             ]
 
     def test_cloudwatch_command_binds_values_to_flags(self):
-        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+        with patch("opspilot.proc.subprocess.Popen") as popen:
             popen.return_value = self._fake_popen(stdout=b"cw logs")
             auto_detect_and_fetch("cw:///aws/lambda/fn::stream-1")
             cmd = popen.call_args.args[0]
@@ -129,14 +130,14 @@ class TestCliSources:
         assert "--log-stream-name=stream-1" in cmd
 
     def test_cli_failure_reports_stderr(self):
-        with patch("opspilot.context.production_logs.subprocess.Popen") as popen:
+        with patch("opspilot.proc.subprocess.Popen") as popen:
             popen.return_value = self._fake_popen(stderr=b"AccessDenied", returncode=1)
             with pytest.raises(LogSourceError, match="AccessDenied"):
                 auto_detect_and_fetch("s3://my-bucket/app.log")
 
     def test_missing_cli_reports_install_hint(self):
         with patch(
-            "opspilot.context.production_logs.subprocess.Popen",
+            "opspilot.proc.subprocess.Popen",
             side_effect=FileNotFoundError,
         ):
             with pytest.raises(LogSourceError, match="install it from"):
@@ -160,4 +161,5 @@ def test_subprocess_module_is_not_shell_based():
     import inspect
 
     assert "shell=True" not in inspect.getsource(pl)
+    assert "shell=True" not in inspect.getsource(proc)
     assert subprocess  # imported for clarity
