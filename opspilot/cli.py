@@ -415,14 +415,6 @@ def analyze(
         else:
             console.print("[dim]Explain mode: context gathering only (no LLM)[/dim]")
 
-        past = find_similar_issues(project_root)
-        if past:
-            console.print("[magenta]Similar issues detected from past runs:[/magenta]")
-            for p in past[-2:]:
-                console.print(
-                    f"- {p.get('hypothesis', 'Unknown')} (confidence {p.get('confidence', 0.0)})"
-                )
-
         state = AgentState(project_root=project_root)
 
         config = load_config(project_root)
@@ -533,6 +525,12 @@ def analyze(
 
         evidence = collect_evidence(state.context)
         state.evidence = evidence
+
+        past = find_similar_issues(project_root, evidence)
+        if past:
+            console.print("[magenta]Seen before in this project:[/magenta]")
+            for p in past:
+                console.print(f"- {p.get('timestamp')}: {p.get('hypothesis')}")
 
         if debug:
             console.print("[dim][debug] evidence done[/dim]")
@@ -698,14 +696,7 @@ def analyze(
         else:
             console.print("[yellow]Confidence too low — not generating fixes.[/yellow]")
 
-        save_memory(
-            {
-                "project": project_root,
-                "hypothesis": state.hypothesis,
-                "confidence": verdict.get("confidence") if verdict else 0.0,
-                "evidence": evidence,
-            }
-        )
+        save_memory(project_root, state.hypothesis, evidence)
         console.print("\n[bold green]Final Diagnosis Summary[/bold green]")
         console.print(f"• Hypothesis: {state.hypothesis}")
         console.print(f"• Confidence: {state.confidence}")

@@ -261,7 +261,7 @@ class TroubleshootingWorkflow:
         """
         from opspilot.memory import find_similar_issues
 
-        similar = find_similar_issues(self.project_root, threshold=0.6)
+        similar = find_similar_issues(self.project_root)
 
         if similar:
             self.context.similar_incidents = similar
