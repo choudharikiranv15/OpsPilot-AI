@@ -12,6 +12,15 @@
 
 ---
 
+## Status Update: After Remediation (2026-11-23)
+
+The findings below describe `main` at `4b908aa`, the state that was audited. Remediation then landed on `main` in small commits, 54 of 67 checklist items, tracked in [`OPSPILOT_RELEASE_CHECKLIST.md`](OPSPILOT_RELEASE_CHECKLIST.md):
+
+- **Fixed:** BUG-01 to BUG-24 (except BUG-20, which went away with the provider rewrite), SEC-01 to SEC-11, SEC-13, and AI-01 to AI-11, with tests. CI is green on Linux, macOS and Windows (Python 3.11-3.13), including a clean-wheel install smoke test. 151+ tests; coverage about 89%.
+- **Partly done:** SEC-12 (the workflow uses Trusted Publishing and SHA-pinned actions; the PyPI and GitHub settings are still to be done by the maintainer).
+- **Measured AI quality:** on a 12-case golden set, schema validity and citation validity are 100%; category accuracy is 75% with `llama3.2` (3B) and 92% with `llama3` (8B) (`docs/evaluation.md`).
+- **Revised recommendation:** `main` is now a release candidate for 0.2.0, pending the remaining checklist items (PyPI trusted-publisher setup, a TestPyPI dry run, a manual smoke test on macOS/Linux) and a maintainer review.
+
 ## Quick Read: Most Important Findings and Next Actions
 
 **Verdict: NO-GO for releasing the current `main`.** The published PyPI 0.1.6 works. The unreleased `main` is a regression. It cannot be installed, its new command crashes, and it introduces a secret-exposure path.
@@ -323,7 +332,7 @@ There is no authentication or authorization surface (single-user local CLI, no s
 | SEC-10 | **Low** | Memory file: unbounded growth, non-atomic writes, stores evidence in plaintext; a corrupt file causes a DoS | Confirmed by code |
 | SEC-11 | **Low** | LLM call amplification (retries on non-retryable errors, repair loops, no global deadline) | Confirmed by code |
 | SEC-12 | **Low** | CI/CD supply chain: mutable action refs, long-lived PyPI token, security scans ignored | Confirmed |
-| SEC-13 | **Low** | Default Ollama model missing triggers a large implicit model download | Inferred from Ollama behaviour; not executed |
+| SEC-13 | **Low** | Default Ollama model missing triggers a large implicit model download | **Confirmed** (see correction in SEC-13) |
 | SEC-14 | **Info** | `--build-cmd` executes arbitrary commands (by design) | Confirmed (by design) |
 | SEC-15 | **Info** | Secret scanning of history: clean | Confirmed |
 
@@ -421,10 +430,11 @@ There is no authentication or authorization surface (single-user local CLI, no s
 - **Files:** `.github/workflows/ci.yml:97, 101` (`safety`/`bandit` results ignored with `|| true` and `continue-on-error`); `:150` (`pypa/gh-action-pypi-publish@release/v1`, a mutable branch ref); `:152` (long-lived `PYPI_API_TOKEN` secret); all third-party actions pinned by tag, not commit SHA. No lockfile or hashes for dev and CI dependencies.
 - **Remediation:** PyPI **Trusted Publishing** (OIDC) with a protected `pypi` environment; pin actions by SHA (Dependabot can maintain them); make `pip-audit` and `bandit -ll` blocking; generate the release from a tag only.
 
-#### SEC-13: Implicit large model download (Low, Inferred)
+#### SEC-13: Implicit large model download (Low, Confirmed)
 
 - **File:** `utils/llm_providers.py:274-281` (`ollama run <model>`).
 - **Description:** `ollama run` pulls a model that is not present. With the default `llama3` missing, a first run starts a multi-GB download inside a 60 s timeout, then retries up to 4 times, then falls back to cloud (SEC-02). Not executed during the audit, deliberately.
+- **Correction:** this audit originally said the download was not executed. In fact, the audit's smoke test of the published PyPI 0.1.6 (`analyze --mode explain`, which in 0.1.6 still calls the LLM) ran `ollama run llama3` on the auditor's machine and silently downloaded the ~4.7 GB `llama3` model. That confirms the finding in practice. `ollama rm llama3` removes it.
 - **Remediation:** call the Ollama HTTP API (`/api/tags` to check, `/api/generate` with `format: json`) instead of the CLI. If the model is missing, stop with `Run: ollama pull <model>`.
 
 #### SEC-14: `--build-cmd` runs arbitrary commands (Info, by design)
