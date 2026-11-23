@@ -144,8 +144,8 @@ These change the scope of several items below. Record each decision here.
   - Evidence: SEC-13, BUG-08, BUG-20; `opspilot/utils/llm_providers.py:250-289`
 
 - [ ] **P2-13: Harden CI/CD supply chain**
-  - Category: Security/CI · Priority: P1 · Status: In progress: workflow uses Trusted Publishing, SHA-pinned actions, Dependabot, blocking pip-audit/bandit (0af1325). Remaining maintainer steps: add the trusted publisher on pypi.org, create the 'pypi' GitHub environment, delete the PYPI_API_TOKEN secret (see RELEASING.md) · Depends on: P1-07
-  - Acceptance: PyPI Trusted Publishing (OIDC) through a protected `pypi` environment; the `PYPI_API_TOKEN` secret is deleted. Actions are pinned by commit SHA, with Dependabot enabled for actions and pip. `pip-audit` and `bandit -ll` block the build (no `|| true`).
+  - Category: Security/CI · Priority: P1 · Status: In progress: workflow uses Trusted Publishing, SHA-pinned actions, blocking pip-audit/bandit (0af1325). Dependabot was added and then removed at the maintainer's request (no third-party bot PRs); action pins are updated manually. Remaining maintainer steps: add the trusted publisher on pypi.org, create the 'pypi' GitHub environment, delete the PYPI_API_TOKEN secret (see RELEASING.md) · Depends on: P1-07
+  - Acceptance: PyPI Trusted Publishing (OIDC) through a protected `pypi` environment; the `PYPI_API_TOKEN` secret is deleted. Actions are pinned by commit SHA and updated manually (maintainer policy: no third-party bot PRs). `pip-audit` and `bandit -ll` block the build (no `|| true`).
   - Evidence: SEC-12; `.github/workflows/ci.yml:97, 101, 150-152`
 
 - [x] **P2-14: Document the `--build-cmd` trust model**

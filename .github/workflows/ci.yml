@@ -11,7 +11,8 @@ permissions:
   contents: read
 
 # Third-party actions are pinned to commit SHAs (tag in trailing comment).
-# Dependabot (.github/dependabot.yml) keeps them current.
+# Update them manually (look up the new release's commit SHA); no bot PRs are used.
+# Dependency vulnerabilities are caught by the blocking pip-audit step below.
 
 jobs:
   lint:
