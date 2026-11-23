@@ -269,7 +269,11 @@ def parse_cargo_toml(file_path: Path) -> list[str]:
                 parts = line.split("=", 1)
                 if parts:
                     name = parts[0].strip()
-                    version = parts[1].strip().strip("\"'")
+                    version = parts[1].strip()
+                    if version.startswith("{"):  # inline table: { version = "1" }
+                        inline = re.search(r'version\s*=\s*"([^"]+)"', version)
+                        version = inline.group(1) if inline else "*"
+                    version = version.strip("\"'")
                     prefix = "(dev) " if in_dev_deps else ""
                     deps.append(f"{prefix}{name}@{version}")
 
@@ -315,7 +319,11 @@ def parse_build_gradle(file_path: Path) -> list[str]:
         # implementation "group:artifact:version"
         # compile 'group:artifact:version'
         # testImplementation 'group:artifact:version'
-        pattern = r'(?:implementation|compile|testImplementation|testCompile|api|runtimeOnly)\s*[\'"]([^\'"]+)[\'"]'
+        # Groovy form: implementation 'g:a:v'; Kotlin DSL form: implementation("g:a:v")
+        pattern = (
+            r"\b(?:implementation|compile|testImplementation|testCompile|api|"
+            r"runtimeOnly|compileOnly|annotationProcessor|kapt)\s*\(?\s*['\"]([^'\"]+)['\"]"
+        )
         matches = re.findall(pattern, content)
 
         for match in matches:

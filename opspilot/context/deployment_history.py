@@ -88,6 +88,7 @@ def get_changed_files(repo_path: str, commit_hash: str) -> list[str]:
             "-C",
             repo_path,
             "diff-tree",
+            "--root",
             "--no-commit-id",
             "--name-only",
             "-r",
