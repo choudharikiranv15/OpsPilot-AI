@@ -363,3 +363,21 @@ def _git_available() -> bool:
     import shutil
 
     return shutil.which("git") is not None
+
+
+def test_non_applying_patches_are_hidden_unless_verbose(project, fake_llm) -> None:
+    bad = {
+        "suggestions": [
+            {
+                "file": "app/main.py",
+                "diff": "--- a/app/main.py\n+++ b/app/main.py\n@@ -1 +1 @@\n-nope\n+x\n",
+            }
+        ]
+    }
+    fake_llm.queue += [ollama_reply(diagnosis_reply()), ollama_reply(bad)]
+    result = run("analyze")
+    assert "did not apply to your files and are hidden" in result.stdout
+    assert "-nope" not in result.stdout
+    fake_llm.queue += [ollama_reply(diagnosis_reply()), ollama_reply(bad)]
+    result = run("analyze", "--verbose")
+    assert "-nope" in result.stdout
