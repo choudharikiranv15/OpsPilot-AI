@@ -29,6 +29,7 @@ from opspilot.llm import (
     LLMRouter,
     ProviderStatus,
     permitted_provider_names,
+    small_model_hint,
 )
 from opspilot.pipeline import AnalyzeOptions, run_analysis
 from opspilot.proc import DEFAULT_MAX_BYTES, run_bounded, split_command, tail_bytes
@@ -396,3 +397,6 @@ def doctor(
         out.print("[red]No permitted provider is ready.[/red]")
         raise typer.Exit(code=2)
     out.print("[green]OK[/green]: at least one permitted provider is ready.")
+    hint = small_model_hint(settings.model_for("ollama"))
+    if "ollama" in permitted and hint:
+        out.print(f"[yellow]Tip:[/yellow] {escape(hint)}")

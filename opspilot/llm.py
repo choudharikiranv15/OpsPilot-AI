@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -198,6 +199,34 @@ class OllamaProvider(Provider):
         if not isinstance(text, str) or not text.strip():
             raise LLMResponseError(self.name, "empty response")
         return text
+
+
+_SMALL_MODEL_TAG = re.compile(r":(?:0\.5|1|1\.5|2|3|3\.8)b(?![\w.])")
+_SMALL_MODEL_NAMES = {
+    "llama3.2",
+    "phi3",
+    "phi3:mini",
+    "phi4-mini",
+    "gemma2:2b",
+    "gemma3:1b",
+}
+
+
+def small_model_hint(model: str | None) -> str | None:
+    """Advice when a local model is likely too small for good diagnoses."""
+    if not model:
+        return None
+    name = model.lower()
+    if name.removesuffix(":latest") in _SMALL_MODEL_NAMES or _SMALL_MODEL_TAG.search(
+        name
+    ):
+        return (
+            f"'{model}' is a small model; its diagnoses are often vague or wrong on "
+            "real projects. For better results use an 8B model, e.g. "
+            "'ollama pull llama3' and then --model llama3 "
+            "(or set OPSPILOT_OLLAMA_MODEL). See docs/evaluation.md."
+        )
+    return None
 
 
 def _ollama_has_model(installed: list[str], wanted: str) -> bool:

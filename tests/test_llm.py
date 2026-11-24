@@ -325,3 +325,22 @@ def test_model_override_applies_only_to_primary_provider() -> None:
     explicit = make_settings(provider="anthropic", model="custom")
     assert explicit.model_for("anthropic") == "custom"
     assert explicit.model_for("ollama") == "llama3.2"
+
+
+@pytest.mark.parametrize(
+    ("model", "small"),
+    [
+        ("llama3.2", True),
+        ("llama3.2:latest", True),
+        ("qwen2.5:3b", True),
+        ("gemma2:2b", True),
+        ("llama3", False),
+        ("llama3.1:8b", False),
+        ("qwen2.5:7b", False),
+        (None, False),
+    ],
+)
+def test_small_model_hint(model, small) -> None:
+    from opspilot.llm import small_model_hint
+
+    assert (small_model_hint(model) is not None) is small
