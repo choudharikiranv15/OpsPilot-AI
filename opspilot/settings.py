@@ -64,7 +64,7 @@ class OpsPilotSettings(BaseSettings):
 
     # Provider details
     ollama_host: str = Field(default="http://localhost:11434")
-    ollama_model: str = Field(default="llama3.2")
+    ollama_model: str = Field(default="llama3")
     gemini_model: str = Field(default="gemini-2.5-flash")
     anthropic_model: str = Field(default="claude-haiku-5-5")
     openrouter_model: str | None = Field(

@@ -334,7 +334,7 @@ def test_reports_are_written(project, fake_llm, name) -> None:
 def test_doctor_reports_ready_local_provider(project, fake_llm) -> None:
     result = run("doctor")
     assert result.exit_code == 0, result.output
-    assert "ollama (llama3.2, local): ready, will be used" in result.stdout
+    assert "ollama (llama3, local): ready, will be used" in result.stdout
 
 
 def test_doctor_fails_when_nothing_is_ready(project, monkeypatch) -> None:
@@ -392,8 +392,10 @@ def test_no_ai_disclaimer_without_ai_output(tmp_path, monkeypatch, fake_llm) -> 
     assert "AI-generated" not in (tmp_path / "r.md").read_text("utf-8")
 
 
-def test_doctor_suggests_larger_model_for_small_default(project, fake_llm) -> None:
-    result = run("doctor")
-    assert "small model" in result.stdout
-    result = run("doctor", "--model", "llama3")
+def test_doctor_suggests_larger_model_for_small_models(project, fake_llm) -> None:
+    fake_llm.tags = ["llama3:latest", "llama3.2:latest"]
+    result = run("doctor")  # default llama3 (8B): no tip
+    assert result.exit_code == 0, result.output
     assert "small model" not in result.stdout
+    result = run("doctor", "--model", "llama3.2")
+    assert "small model" in result.stdout

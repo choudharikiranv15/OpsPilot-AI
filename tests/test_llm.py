@@ -65,7 +65,7 @@ class FakeSession:
     """Records requests; returns queued responses (or raises queued exceptions)."""
 
     def __init__(self, tags: list[str] | None = None, ollama_up: bool = True):
-        self.tags = tags if tags is not None else ["llama3.2:latest"]
+        self.tags = tags if tags is not None else ["llama3:latest"]
         self.ollama_up = ollama_up
         self.posts: list[dict] = []
         self.queue: list[Any] = []
@@ -152,6 +152,7 @@ def test_ollama_missing_model_reports_pull_command_without_downloading() -> None
         (["llama3.2:3b"], "llama3.2", True),
         (["llama3.2:3b"], "llama3.2:1b", False),
         (["llama3:latest"], "llama3.2", False),
+        (["llama3.2:latest"], "llama3", False),
     ],
 )
 def test_ollama_model_matching(installed, wanted, ready) -> None:
@@ -324,7 +325,7 @@ def test_model_override_applies_only_to_primary_provider() -> None:
     assert settings.model_for("gemini") == "gemini-2.5-flash"
     explicit = make_settings(provider="anthropic", model="custom")
     assert explicit.model_for("anthropic") == "custom"
-    assert explicit.model_for("ollama") == "llama3.2"
+    assert explicit.model_for("ollama") == "llama3"
 
 
 @pytest.mark.parametrize(

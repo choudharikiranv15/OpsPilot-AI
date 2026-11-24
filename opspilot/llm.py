@@ -224,7 +224,7 @@ def small_model_hint(model: str | None) -> str | None:
             f"'{model}' is a small model; its diagnoses are often vague or wrong on "
             "real projects. For better results use an 8B model, e.g. "
             "'ollama pull llama3' and then --model llama3 "
-            "(or set OPSPILOT_OLLAMA_MODEL). See docs/evaluation.md."
+            "(or set OPSPILOT_OLLAMA_MODEL)."
         )
     return None
 
