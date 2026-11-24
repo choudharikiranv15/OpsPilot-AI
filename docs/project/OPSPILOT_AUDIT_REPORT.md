@@ -14,7 +14,7 @@
 
 ## Status Update: After Remediation (2026-11-23)
 
-The findings below describe `main` at `4b908aa`, the state that was audited. Remediation then landed on `main` in small commits, 54 of 67 checklist items, tracked in [`OPSPILOT_RELEASE_CHECKLIST.md`](OPSPILOT_RELEASE_CHECKLIST.md):
+This is an internal engineering record. The findings below describe `main` at `4b908aa`, the state that was audited, not the current code. Remediation then landed on `main` in small commits, 54 of 67 checklist items, tracked in [`OPSPILOT_RELEASE_CHECKLIST.md`](OPSPILOT_RELEASE_CHECKLIST.md):
 
 - **Fixed:** BUG-01 to BUG-24, SEC-01 to SEC-11, SEC-13, and AI-01 to AI-09 and AI-11, with tests. AI-10 (evaluation) now exists as `scripts/eval_diagnosis.py`. SEC-04 (prompt injection) is mitigated, not eliminated: data is delimited, outputs are schema-checked and citations validated, but log content can still sway a model's answer. CI is green on Linux, macOS and Windows (Python 3.11-3.13), including a clean-wheel install smoke test. 151+ tests; coverage about 89%.
 - **Partly done:** SEC-12 (the workflow uses Trusted Publishing and SHA-pinned actions; the PyPI and GitHub settings are still to be done by the maintainer).

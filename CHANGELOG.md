@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased] - 0.2.0
 
-A substantial rework based on an end-to-end audit (`OPSPILOT_AUDIT_REPORT.md`). Focus: correctness, privacy, and honest output.
+A substantial rework based on an end-to-end audit ([docs/project/OPSPILOT_AUDIT_REPORT.md](docs/project/OPSPILOT_AUDIT_REPORT.md)). Focus: correctness, privacy, and honest output.
 
 ### Breaking changes
 
