@@ -381,3 +381,19 @@ def test_non_applying_patches_are_hidden_unless_verbose(project, fake_llm) -> No
     fake_llm.queue += [ollama_reply(diagnosis_reply()), ollama_reply(bad)]
     result = run("analyze", "--verbose")
     assert "-nope" in result.stdout
+
+
+def test_no_ai_disclaimer_without_ai_output(tmp_path, monkeypatch, fake_llm) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPSPILOT_CONFIG_FILE", str(tmp_path / "none.env"))
+    result = run("analyze", "-o", "r.md")
+    assert result.exit_code == 0, result.output
+    assert "AI-generated" not in result.stdout
+    assert "AI-generated" not in (tmp_path / "r.md").read_text("utf-8")
+
+
+def test_doctor_suggests_larger_model_for_small_default(project, fake_llm) -> None:
+    result = run("doctor")
+    assert "small model" in result.stdout
+    result = run("doctor", "--model", "llama3")
+    assert "small model" not in result.stdout

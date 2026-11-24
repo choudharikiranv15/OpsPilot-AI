@@ -145,7 +145,7 @@ def render_terminal(
         footer.append("facts only, no LLM used")
     footer.append(f"{result.elapsed_seconds:.1f}s")
     console.print(Text(" · ".join(footer), style="dim"))
-    if result.mode == "diagnose":
+    if _has_ai_output(result):
         console.print(Text(DISCLAIMER, style="dim"))
 
 
@@ -218,8 +218,14 @@ def render_markdown(result: AnalysisResult) -> str:
             ]
     if result.warnings:
         lines += ["", "## Notes", ""] + [f"- {_md(w)}" for w in result.warnings]
-    lines += ["", "---", "", f"_{DISCLAIMER}_", ""]
+    if _has_ai_output(result):
+        lines += ["", "---", "", f"_{DISCLAIMER}_"]
+    lines.append("")
     return "\n".join(lines)
+
+
+def _has_ai_output(result: AnalysisResult) -> bool:
+    return result.diagnosis is not None or bool(result.suggestions)
 
 
 def render_text(result: AnalysisResult) -> str:
