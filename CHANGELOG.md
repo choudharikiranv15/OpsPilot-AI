@@ -4,13 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased] - 0.2.0
 
-A substantial rework based on an end-to-end audit ([docs/project/OPSPILOT_AUDIT_REPORT.md](docs/project/OPSPILOT_AUDIT_REPORT.md)). Focus: correctness, privacy, and honest output.
+A substantial rework based on an end-to-end audit. Focus: correctness, privacy, and honest output.
 
 ### Breaking changes
 
 - **Local-only by default.** OpsPilot no longer falls back from Ollama to cloud providers on its own. Use `--provider gemini|anthropic|openrouter` or `--allow-cloud`.
 - **Configuration moved.** OpsPilot no longer loads the analysed project's `.env` (or any `.env` found by searching upwards) into its own environment. Put API keys in your shell environment or in `~/.config/opspilot/config.env`. See `config.env.example`.
-- Default Ollama model is now `llama3.2`, called through Ollama's HTTP API. Missing models are reported with the `ollama pull` command instead of being downloaded implicitly.
+- Default Ollama model is now `llama3` (8B), called through Ollama's HTTP API. Missing models are reported with the `ollama pull` command instead of being downloaded implicitly.
 - The HuggingFace provider was removed (its endpoint was retired). OpenRouter now requires `OPSPILOT_OPENROUTER_MODEL`.
 - Output format changed: facts, hypotheses with citations, and dry-run patches. `--json` output has a new schema (`schema_version: "1"`).
 - Automatic log discovery reads only `*.log` files; root-level `*.txt`/`*.jsonl` files are no longer treated as logs.
@@ -32,7 +32,7 @@ A substantial rework based on an end-to-end audit ([docs/project/OPSPILOT_AUDIT_
 - Anthropic provider support.
 - Patches that fail `git apply --check` are hidden in terminal output unless `--verbose` is given (they remain in `--json` and reports).
 - `python -m opspilot`.
-- Documentation: privacy, configuration, troubleshooting, security policy, contributing guide.
+- Documentation consolidated into one user guide (README: usage, privacy, configuration, troubleshooting), `SECURITY.md`, and `docs/DEVELOPMENT.md` for contributors.
 
 ### Fixed
 

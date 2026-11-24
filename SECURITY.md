@@ -26,4 +26,4 @@ OpsPilot is a local command-line tool that runs with your privileges. Its main s
 - `.env` values are never read into output or prompts. Likely secrets are redacted before text is sent to a model.
 - Data goes only to local Ollama unless you explicitly opt in to a cloud provider.
 
-Known limitations: redaction is pattern-based and can miss unusual secret formats, and content in logs can still try to steer the model's answer (prompt injection). That is why output is advisory and cloud use is opt-in. See [docs/privacy.md](docs/privacy.md).
+Known limitations: redaction is pattern-based and can miss unusual secret formats, and content in logs can still try to steer the model's answer (prompt injection). That is why output is advisory and cloud use is opt-in. See the Privacy section of the [README](README.md#privacy).

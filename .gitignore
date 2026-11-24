@@ -153,3 +153,6 @@ Thumbs.db
 # Test fixtures intentionally include .env and *.log files
 !tests/fixtures/**/.env
 !tests/fixtures/**/*.log
+
+# Local-only notes (audit report, checklist, research); not published
+docs/internal/

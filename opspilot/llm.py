@@ -1,6 +1,6 @@
 """LLM providers and routing.
 
-Policy (see docs/privacy.md):
+Policy (see the Privacy section of README.md):
 
 * Local first. With ``provider = auto`` (the default) only local Ollama is
   used. Cloud providers are added only when ``allow_cloud`` is set, and only

@@ -1,10 +1,10 @@
 # Source distribution contents (the wheel contains only the opspilot package)
-include README.md LICENSE CHANGELOG.md SECURITY.md CONTRIBUTING.md
-include ARCHITECTURE.md EXAMPLES.md config.env.example
-recursive-include docs *.md
-recursive-include tests *.py *.md
+include README.md LICENSE CHANGELOG.md SECURITY.md config.env.example
+include docs/DEVELOPMENT.md
+recursive-include tests *.py
 recursive-include tests/fixtures *
 include tests/fixtures/sample_project/.env
 
 global-exclude __pycache__ *.py[co] .DS_Store
 prune .github
+prune docs/internal
